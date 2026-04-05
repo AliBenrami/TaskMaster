@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaskMaster Data Agent (API-Only)
 
-## Getting Started
+Next.js + AI SDK `ToolLoopAgent` for data parsing workflows.
 
-First, run the development server:
+The project is currently API-only (GUI intentionally disabled).
+
+## Project Status (WIP)
+
+This repository is **in-progress** and not final.
+
+- We are using the **Vercel AI SDK** as the foundation for agentic work.
+- We are currently using **Gemini** specifically (`@ai-sdk/google`) as the model provider.
+- This is an early baseline that will be expanded and refactored as specific functionality is defined.
+- Most architecture, tools, and behavior are expected to evolve in later iterations.
+
+## Model Provider
+
+- Provider: `@ai-sdk/google`
+- Model: `gemini-2.5-flash-lite`
+- Env var: `GOOGLE_GENERATIVE_AI_API_KEY`
+
+## Setup
+
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create local env file:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Set your API key in `.env.local`:
 
-## Learn More
+```env
+GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_studio_api_key
+```
 
-To learn more about Next.js, take a look at the following resources:
+4. Start dev server:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Route: `POST /api/chat`
+- Handler: `app/api/chat/route.ts`
+- Agent definition: `agent/data-parsing-agent.ts`
+- Stream format: AI SDK UI message stream (SSE)
