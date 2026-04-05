@@ -1,23 +1,18 @@
-# TaskMaster Data Agent (API-Only)
+# TaskMaster (WIP)
 
-Next.js + AI SDK `ToolLoopAgent` for data parsing workflows.
+This repository is actively evolving and not final.
 
-The project is currently API-only (GUI intentionally disabled).
+- We are using the **Vercel AI SDK** as the foundation for agentic workflows.
+- We are currently using **Gemini** (`@ai-sdk/google`) as the LLM provider.
+- We are also integrating **Better Auth + Drizzle** for authentication and database-backed user/session handling.
+- Most architecture and implementation details will continue to change as feature requirements are refined.
 
-## Project Status (WIP)
+## Current Scope
 
-This repository is **in-progress** and not final.
-
-- We are using the **Vercel AI SDK** as the foundation for agentic work.
-- We are currently using **Gemini** specifically (`@ai-sdk/google`) as the model provider.
-- This is an early baseline that will be expanded and refactored as specific functionality is defined.
-- Most architecture, tools, and behavior are expected to evolve in later iterations.
-
-## Model Provider
-
-- Provider: `@ai-sdk/google`
-- Model: `gemini-2.5-flash-lite`
-- Env var: `GOOGLE_GENERATIVE_AI_API_KEY`
+- Next.js App Router app
+- Agentic API endpoint at `POST /api/chat`
+- Better Auth route base at `/api/auth/*`
+- Drizzle migrations + PostgreSQL/Neon wiring
 
 ## Setup
 
@@ -33,21 +28,43 @@ pnpm install
 cp .env.example .env.local
 ```
 
-3. Set your API key in `.env.local`:
+3. Fill required values in `.env.local`.
+
+## Environment Variables
 
 ```env
 GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_studio_api_key
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/taskmaster
+DB_DRIVER=neon-http
+BETTER_AUTH_SECRET=replace-with-a-long-random-secret
+BETTER_AUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-4. Start dev server:
+## Development Commands
 
 ```bash
 pnpm dev
+pnpm lint
+pnpm build
+pnpm auth:generate
+pnpm db:generate
+pnpm db:migrate
 ```
 
-## API
+## API Example (`/api/chat`)
 
-- Route: `POST /api/chat`
-- Handler: `app/api/chat/route.ts`
-- Agent definition: `agent/data-parsing-agent.ts`
-- Stream format: AI SDK UI message stream (SSE)
+```bash
+curl -N -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {
+        "id": "u1",
+        "role": "user",
+        "parts": [{ "type": "text", "text": "Parse this JSON: {\"name\":\"Ali\"}" }]
+      }
+    ]
+  }'
+```
