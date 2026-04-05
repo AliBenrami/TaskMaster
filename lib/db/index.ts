@@ -16,7 +16,16 @@ if (!process.env.DATABASE_URL && process.env.NODE_ENV === "production") {
   throw new Error("DATABASE_URL is required in production.");
 }
 
-const createDb = () => {
+type DrizzleDb =
+  | ReturnType<typeof drizzleNodePg<typeof schema>>
+  | ReturnType<typeof drizzleNeonHttp<typeof schema>>;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __db: DrizzleDb | undefined;
+}
+
+const createDb = (): DrizzleDb => {
   if (dbDriver === "pg") {
     const pool = new Pool({ connectionString: databaseUrl });
     return drizzleNodePg({ client: pool, schema });
@@ -26,5 +35,16 @@ const createDb = () => {
   return drizzleNeonHttp({ client, schema });
 };
 
-export const db = createDb();
+const getDb = (): DrizzleDb => {
+  if (process.env.NODE_ENV !== "production") {
+    if (!globalThis.__db) {
+      globalThis.__db = createDb();
+    }
+    return globalThis.__db;
+  }
+  return createDb();
+};
+
+export const db = getDb();
+
 export { dbDriver, schema };
