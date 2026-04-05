@@ -10,7 +10,7 @@ This repository is actively evolving and not final.
 ## Current Scope
 
 - Next.js App Router app
-- Agentic API endpoint at `POST /api/chat`
+- Agentic base API endpoint at `POST /api/chat`
 - Better Auth route base at `/api/auth/*`
 - Drizzle migrations + PostgreSQL/Neon wiring
 
@@ -63,8 +63,14 @@ curl -N -X POST http://localhost:3000/api/chat \
       {
         "id": "u1",
         "role": "user",
-        "parts": [{ "type": "text", "text": "Parse this JSON: {\"name\":\"Ali\"}" }]
+        "parts": [{ "type": "text", "text": "Help me plan an implementation for a new TaskMaster module." }]
       }
     ]
   }'
 ```
+
+## AI SDK Foundation Notes
+
+- The current agent implementation is intentionally minimal and generic.
+- No domain-specific tools are pre-wired yet.
+- Extend from `agent/base-agent.ts` as product-specific functionality is defined.

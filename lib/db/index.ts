@@ -21,7 +21,6 @@ type DrizzleDb =
   | ReturnType<typeof drizzleNeonHttp<typeof schema>>;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __db: DrizzleDb | undefined;
 }
 

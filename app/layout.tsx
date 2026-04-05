@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TaskMaster Data Agent",
-  description: "AI SDK agent for data parsing workflows",
+  title: "TaskMaster AI SDK Foundation",
+  description: "Foundational Vercel AI SDK + Gemini setup for future agentic features",
 };
 
 export default function RootLayout({
