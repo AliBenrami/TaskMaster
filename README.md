@@ -68,3 +68,23 @@ pnpm dev
 - `DB_DRIVER` supports `neon-http` (default) and `pg`.
 - `experimental.joins` is enabled in `lib/auth.ts`.
 - Naming scaffolds (`usePlural`, `modelName`, `fields`) are present and commented in the auth config.
+- Email/password auth is enabled.
+- Google OAuth is enabled when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+
+## Auth Implementation
+
+Authentication is implemented with:
+
+- [Better Auth](https://better-auth.com) for auth flows and session handling
+- Drizzle ORM via the Better Auth Drizzle adapter
+- PostgreSQL/Neon-compatible database wiring
+
+This repo currently includes the core auth backend integration (config, adapter, schema, migrations, and auth route handlers). UI/auth pages may evolve quickly and are intentionally not treated as stable documentation here.
+
+Core auth route base path:
+
+- `/api/auth/*`
+
+Google OAuth redirect URI to configure in Google Cloud:
+
+- `http://localhost:3000/api/auth/callback/google`
