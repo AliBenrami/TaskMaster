@@ -8,6 +8,13 @@
       "when": 1775367467515,
       "tag": "0000_remarkable_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775532138591,
+      "tag": "0001_white_wrecker",
+      "breakpoints": true
     }
   ]
 }
