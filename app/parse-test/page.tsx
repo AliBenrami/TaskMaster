@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { ParseTestClient } from "./parse-test-client";
+import type { ParseTestViewModel } from "@/lib/parse-test/contracts";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
 import { getParseTestViewModel } from "@/lib/parse-test/service";
 
@@ -23,6 +24,14 @@ function formatTimestamp(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatPercent(value: number | null) {
+  if (value == null) {
+    return null;
+  }
+
+  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
 function descriptionSourceLabel(source: string) {
@@ -49,6 +58,92 @@ function uploadStatusLabel(uploadStatus: string | undefined) {
   }
 }
 
+function getPreviewMetrics(preview: ParseTestViewModel) {
+  const today = new Date();
+  const datedAssignments = preview.assignments.filter((assignment) => assignment.dueAt);
+  const upcomingAssignments = datedAssignments.filter(
+    (assignment) => assignment.dueAt && new Date(assignment.dueAt).getTime() >= today.getTime(),
+  );
+  const nextAssignment = upcomingAssignments[0] ?? datedAssignments[0] ?? null;
+  const totalGradedWeight = preview.gradingItems.reduce((sum, item) => sum + item.weightPercent, 0);
+
+  return {
+    datedAssignmentsCount: datedAssignments.length,
+    upcomingAssignmentsCount: upcomingAssignments.length,
+    nextAssignment,
+    totalGradedWeight,
+  };
+}
+
+function getGradeDistributionStyle(items: ParseTestViewModel["gradingItems"]) {
+  if (items.length === 0) {
+    return {
+      background:
+        "conic-gradient(from 180deg, rgba(228,228,231,1) 0deg 360deg)",
+    };
+  }
+
+  const colors = [
+    "#18181b",
+    "#3f3f46",
+    "#71717a",
+    "#a1a1aa",
+    "#d4d4d8",
+    "#52525b",
+  ];
+
+  let current = 0;
+  const segments = items.map((item, index) => {
+    const start = current;
+    current += Math.max(0, item.weightPercent);
+    return `${colors[index % colors.length]} ${start}% ${current}%`;
+  });
+
+  if (current < 100) {
+    segments.push(`#e4e4e7 ${current}% 100%`);
+  }
+
+  return {
+    background: `conic-gradient(from 180deg, ${segments.join(", ")})`,
+  };
+}
+
+function AssignmentCard({ assignment }: { assignment: ParseTestViewModel["assignments"][number] }) {
+  const primaryDate = formatDueAt(assignment.dueAt) ?? assignment.dateText;
+  const secondaryDate =
+    assignment.timeText && assignment.timeText !== assignment.dateText ? assignment.timeText : null;
+
+  return (
+    <article className="rounded-[22px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/70">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
+              {assignment.category}
+            </span>
+            {assignment.weightPercent != null ? (
+              <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                {formatPercent(assignment.weightPercent)} of grade
+              </span>
+            ) : null}
+          </div>
+          <h4 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
+            {assignment.title}
+          </h4>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{assignment.sourceSnippet}</p>
+        </div>
+
+        <div className="min-w-44 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="font-medium text-zinc-900 dark:text-zinc-100">{primaryDate}</div>
+          {secondaryDate ? (
+            <div className="mt-1 text-zinc-500 dark:text-zinc-400">{secondaryDate}</div>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default async function ParseTestPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
@@ -63,6 +158,9 @@ export default async function ParseTestPage(props: {
     ? searchParams.upload[0]
     : searchParams?.upload;
   const preview = await getParseTestViewModel();
+
+  const metrics = preview ? getPreviewMetrics(preview) : null;
+  const gradeDistributionStyle = preview ? getGradeDistributionStyle(preview.gradingItems) : null;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(244,244,245,0.96),_rgba(255,255,255,1)_40%,_rgba(250,250,250,1)_100%)] dark:bg-[radial-gradient(circle_at_top,_rgba(39,39,42,0.55),_rgba(10,10,10,1)_45%,_rgba(0,0,0,1)_100%)]">
@@ -84,7 +182,7 @@ export default async function ParseTestPage(props: {
 
         <ParseTestClient hasPreview={Boolean(preview)} />
 
-        {preview ? (
+        {preview && metrics && gradeDistributionStyle ? (
           <section className="grid gap-6">
             <div className="overflow-hidden rounded-[32px] border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
               <div className="border-b border-zinc-200 bg-[linear-gradient(135deg,rgba(244,244,245,0.95),rgba(255,255,255,0.8))] px-7 py-8 dark:border-zinc-800 dark:bg-[linear-gradient(135deg,rgba(39,39,42,0.88),rgba(9,9,11,1))]">
@@ -129,6 +227,44 @@ export default async function ParseTestPage(props: {
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-8 grid gap-4 md:grid-cols-3">
+                  <div className="rounded-[24px] border border-zinc-200 bg-white/75 p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Upcoming work
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {metrics.upcomingAssignmentsCount}
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      Dated milestones still ahead in the current syllabus parse.
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-zinc-200 bg-white/75 p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Next milestone
+                    </div>
+                    <div className="mt-2 text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {metrics.nextAssignment?.title ?? "No dated item found"}
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      {metrics.nextAssignment
+                        ? formatDueAt(metrics.nextAssignment.dueAt) ?? metrics.nextAssignment.dateText
+                        : "The parser did not find a specific upcoming calendar date."}
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-zinc-200 bg-white/75 p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                      Total graded weight
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                      {formatPercent(metrics.totalGradedWeight)}
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      Based on the extracted grading categories.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-6 px-7 py-8 lg:grid-cols-[1.3fr_0.9fr]">
@@ -157,47 +293,16 @@ export default async function ParseTestPage(props: {
                   </section>
 
                   <section className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-                    <h3 className="text-lg font-semibold tracking-tight">Assignment timeline</h3>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-lg font-semibold tracking-tight">Assignment timeline</h3>
+                      <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                        {metrics.datedAssignmentsCount} dated item{metrics.datedAssignmentsCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
                     <div className="mt-5 grid gap-3">
                       {preview.assignments.length > 0 ? (
                         preview.assignments.map((assignment) => (
-                          <article
-                            key={assignment.id}
-                            className="rounded-[22px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/70"
-                          >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap gap-2">
-                                  <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-white dark:bg-zinc-100 dark:text-zinc-900">
-                                    {assignment.category}
-                                  </span>
-                                  <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                    Confidence {Math.round(assignment.confidence * 100)}%
-                                  </span>
-                                  {assignment.weightPercent != null ? (
-                                    <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                      {assignment.weightPercent}% of grade
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <h4 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">
-                                  {assignment.title}
-                                </h4>
-                                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                                  {assignment.sourceSnippet}
-                                </p>
-                              </div>
-
-                              <div className="min-w-44 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
-                                <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                                  {formatDueAt(assignment.dueAt) ?? assignment.dateText}
-                                </div>
-                                <div className="mt-1 text-zinc-500 dark:text-zinc-400">
-                                  {assignment.timeText ?? assignment.dateText}
-                                </div>
-                              </div>
-                            </div>
-                          </article>
+                          <AssignmentCard key={assignment.id} assignment={assignment} />
                         ))
                       ) : (
                         <p className="rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
@@ -230,37 +335,58 @@ export default async function ParseTestPage(props: {
                   </section>
 
                   <section className="rounded-[24px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-                    <h3 className="text-lg font-semibold tracking-tight">Grading breakdown</h3>
-                    <div className="mt-5 space-y-4">
-                      {preview.gradingItems.length > 0 ? (
-                        preview.gradingItems.map((item) => (
-                          <div key={item.id}>
-                            <div className="flex items-center justify-between gap-3 text-sm">
-                              <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                                {item.label}
-                              </span>
-                              <span className="text-zinc-500 dark:text-zinc-400">
-                                {item.weightPercent}%
-                              </span>
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-lg font-semibold tracking-tight">Grade distribution</h3>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        {preview.gradingItems.length} category{preview.gradingItems.length === 1 ? "" : "ies"}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid gap-5 md:grid-cols-[140px_1fr] md:items-center">
+                      <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full p-3" style={gradeDistributionStyle}>
+                        <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-center dark:bg-zinc-950">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                              Total
                             </div>
-                            <div className="mt-2 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800">
-                              <div
-                                className="h-2 rounded-full bg-zinc-900 dark:bg-zinc-100"
-                                style={{
-                                  width: `${Math.max(0, Math.min(100, item.weightPercent))}%`,
-                                }}
-                              />
+                            <div className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                              {formatPercent(metrics.totalGradedWeight)}
                             </div>
-                            <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                              {item.sourceSnippet}
-                            </p>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                          No grading weights were clearly extracted.
-                        </p>
-                      )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {preview.gradingItems.length > 0 ? (
+                          preview.gradingItems.map((item) => (
+                            <div key={item.id}>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                                  {item.label}
+                                </span>
+                                <span className="text-zinc-500 dark:text-zinc-400">
+                                  {formatPercent(item.weightPercent)}
+                                </span>
+                              </div>
+                              <div className="mt-2 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                                <div
+                                  className="h-2 rounded-full bg-zinc-900 dark:bg-zinc-100"
+                                  style={{
+                                    width: `${Math.max(0, Math.min(100, item.weightPercent))}%`,
+                                  }}
+                                />
+                              </div>
+                              <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                                {item.sourceSnippet}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                            No grading weights were clearly extracted.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </section>
 
@@ -307,7 +433,7 @@ export default async function ParseTestPage(props: {
 
                     <div className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
                       <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                        Parser warnings
+                        Parser notes
                       </div>
                       {preview.run.warnings.length > 0 ? (
                         <ul className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -317,7 +443,7 @@ export default async function ParseTestPage(props: {
                         </ul>
                       ) : (
                         <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-                          No parser warnings for the current singleton preview.
+                          No important parser warnings for the current singleton preview.
                         </p>
                       )}
                     </div>

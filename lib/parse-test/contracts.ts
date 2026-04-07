@@ -22,7 +22,6 @@ const assignmentSchema = z.object({
   timeText: z.string().trim().max(100).nullable(),
   weight: z.number().min(0).max(100).nullable(),
   sourceSnippet: z.string().trim().min(1).max(500),
-  confidence: z.number().min(0).max(1),
 });
 
 const gradingItemSchema = z.object({
@@ -99,7 +98,6 @@ export type ParseTestViewModel = {
     timeText: string | null;
     weightPercent: number | null;
     sourceSnippet: string;
-    confidence: number;
     displayOrder: number;
   }>;
 };
@@ -177,7 +175,6 @@ export const parseTestResponseJsonSchema = {
           "timeText",
           "weight",
           "sourceSnippet",
-          "confidence",
         ],
         required: [
           "title",
@@ -187,7 +184,6 @@ export const parseTestResponseJsonSchema = {
           "timeText",
           "weight",
           "sourceSnippet",
-          "confidence",
         ],
         properties: {
           title: { type: "string" },
@@ -197,7 +193,6 @@ export const parseTestResponseJsonSchema = {
           timeText: { anyOf: [{ type: "string" }, { type: "null" }] },
           weight: { anyOf: [{ type: "number" }, { type: "null" }] },
           sourceSnippet: { type: "string" },
-          confidence: { type: "number" },
         },
       },
     },

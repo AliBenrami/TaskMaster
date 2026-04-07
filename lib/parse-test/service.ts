@@ -59,6 +59,33 @@ function normaliseNullableText(value: string | null) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalisePercent(value: number | null) {
+  if (value == null || Number.isNaN(value)) {
+    return null;
+  }
+
+  const scaled = value > 0 && value <= 1 ? value * 100 : value;
+  return Math.round(scaled * 100) / 100;
+}
+
+function isHighSignalWarning(warning: string) {
+  const lowered = warning.toLowerCase();
+
+  if (lowered.includes("does not provide specific due dates")) {
+    return false;
+  }
+
+  if (lowered.includes("number of quizzes")) {
+    return false;
+  }
+
+  if (lowered.includes("implies there are exactly four assignments")) {
+    return false;
+  }
+
+  return true;
+}
+
 function parseIsoDate(isoDate: string | null) {
   if (!isoDate) {
     return null;
@@ -101,8 +128,9 @@ Rules:
 - Preserve time-of-day details in timeText when present.
 - Never invent dates, weights, instructors, or meeting details.
 - sourceSnippet should be a short excerpt or paraphrase that points back to the syllabus text.
-- confidence should be between 0 and 1.
-- warnings should describe anything ambiguous, missing, or suspicious.
+- Return percentages as whole percent values, for example 40 for 40% and 10 for 10%, never 0.4 or 0.1.
+- warnings should only describe high-signal contradictions or meaningful ambiguity.
+- Do not add warnings just because routine assignment or quiz dates are not listed unless that omission blocks extracting a major deadline.
 `.trim();
 }
 
@@ -122,6 +150,7 @@ function normalisePayload(payload: ParseTestPayload): ParseTestPayload {
     gradingBreakdown: payload.gradingBreakdown.map((item) => ({
       ...item,
       label: item.label.trim(),
+      weight: normalisePercent(item.weight) ?? 0,
       sourceSnippet: item.sourceSnippet.trim(),
     })),
     assignments: payload.assignments.map((assignment) => ({
@@ -131,11 +160,15 @@ function normalisePayload(payload: ParseTestPayload): ParseTestPayload {
       dateText: assignment.dateText.trim(),
       isoDate: normaliseNullableText(assignment.isoDate),
       timeText: normaliseNullableText(assignment.timeText),
+      weight: normalisePercent(assignment.weight),
       sourceSnippet: assignment.sourceSnippet.trim(),
     })),
     warnings: payload.warnings
       .map((warning) => warning.trim())
-      .filter((warning, index, list) => warning.length > 0 && list.indexOf(warning) === index),
+      .filter(
+        (warning, index, list) =>
+          warning.length > 0 && list.indexOf(warning) === index && isHighSignalWarning(warning),
+      ),
   };
 }
 
@@ -336,7 +369,6 @@ async function persistCompletedParse(params: {
         timeText: assignment.timeText,
         weightPercent: assignment.weight,
         sourceSnippet: assignment.sourceSnippet,
-        confidence: assignment.confidence,
         displayOrder: index,
       })),
     );
@@ -415,7 +447,7 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
       contentHash: run.contentHash,
       parseModel: run.parseModel,
       parseStatus: run.parseStatus as ParseStatus,
-      warnings: run.warnings,
+      warnings: run.warnings.filter(isHighSignalWarning),
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
     },
@@ -440,7 +472,7 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
     gradingItems: sortedGradingItems.map((item) => ({
       id: item.id,
       label: item.label,
-      weightPercent: item.weightPercent,
+      weightPercent: normalisePercent(item.weightPercent) ?? 0,
       sourceSnippet: item.sourceSnippet,
       displayOrder: item.displayOrder,
     })),
@@ -451,9 +483,8 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
       dateText: assignment.dateText,
       dueAt: assignment.dueAt ? assignment.dueAt.toISOString() : null,
       timeText: assignment.timeText,
-      weightPercent: assignment.weightPercent,
+      weightPercent: normalisePercent(assignment.weightPercent),
       sourceSnippet: assignment.sourceSnippet,
-      confidence: assignment.confidence,
       displayOrder: assignment.displayOrder,
     })),
   };

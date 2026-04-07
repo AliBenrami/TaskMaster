@@ -161,7 +161,6 @@ export const parseTestAssignment = pgTable(
     timeText: text("time_text"),
     weightPercent: doublePrecision("weight_percent"),
     sourceSnippet: text("source_snippet").notNull(),
-    confidence: doublePrecision("confidence").notNull(),
     displayOrder: integer("display_order").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
