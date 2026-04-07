@@ -45,7 +45,10 @@ export const parseTestPayloadSchema = z.object({
   keyConcepts: z.array(z.string().trim().min(1).max(100)).max(20),
   gradingBreakdown: z.array(gradingItemSchema).max(20),
   assignments: z.array(assignmentSchema).max(100),
-  warnings: z.array(z.string().trim().min(1).max(300)).max(20),
+  warnings: z
+    .array(z.string().trim().max(300).nullable())
+    .max(20)
+    .transform((warnings) => warnings.filter((warning): warning is string => Boolean(warning?.trim()))),
 });
 
 export type ParseTestPayload = z.infer<typeof parseTestPayloadSchema>;
@@ -200,8 +203,7 @@ export const parseTestResponseJsonSchema = {
     },
     warnings: {
       type: "array",
-      items: { type: "string" },
+      items: { anyOf: [{ type: "string" }, { type: "null" }] },
     },
   },
 } as const;
-

@@ -172,15 +172,22 @@ function toPublicError(error: unknown) {
 
     if (lowered.includes("model") && (lowered.includes("not found") || lowered.includes("not supported"))) {
       return new ParseTestError(
-        "The configured Gemini model is unavailable. Switch GEMINI_PARSE_MODEL to gemini-2.5-flash if gemini-2.0-flash is no longer enabled.",
+        "The configured Gemini model is unavailable. Switch GEMINI_PARSE_MODEL to gemini-2.5-flash-lite.",
         502,
       );
     }
 
     if (lowered.includes("deprecated")) {
       return new ParseTestError(
-        "The configured Gemini model appears to be deprecated. Switch GEMINI_PARSE_MODEL to gemini-2.5-flash.",
+        "The configured Gemini model appears to be deprecated. Switch GEMINI_PARSE_MODEL to gemini-2.5-flash-lite.",
         502,
+      );
+    }
+
+    if (lowered.includes("resource_exhausted") || lowered.includes("quota")) {
+      return new ParseTestError(
+        "The current Gemini model or API key has no available quota. Use GEMINI_PARSE_MODEL=gemini-2.5-flash-lite and verify billing/quota for your Google AI key.",
+        429,
       );
     }
 
@@ -246,6 +253,119 @@ async function getCurrentRun() {
     .limit(1);
 
   return runs[0] ?? null;
+}
+
+async function replaceCurrentRunWithProcessing(params: {
+  runId: string;
+  contentHash: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  parseModel: string;
+}) {
+  await db.delete(parseTestRun).where(eq(parseTestRun.scope, PARSE_TEST_SCOPE));
+  await db.insert(parseTestRun).values({
+    id: params.runId,
+    scope: PARSE_TEST_SCOPE,
+    contentHash: params.contentHash,
+    originalFileName: params.fileName,
+    mimeType: params.mimeType,
+    fileSizeBytes: params.fileSizeBytes,
+    parseStatus: "processing",
+    parseModel: params.parseModel,
+    warnings: [],
+  });
+}
+
+async function persistCompletedParse(params: {
+  runId: string;
+  geminiFileUri: string;
+  payload: ParseTestPayload;
+}) {
+  const { runId, geminiFileUri, payload } = params;
+  const courseId = randomUUID();
+
+  await db.insert(parseTestCourse).values({
+    id: courseId,
+    runId,
+    title: payload.courseTitle,
+    courseCode: payload.courseCode,
+    term: payload.term,
+    instructorName: payload.instructorName,
+    meetingDays: payload.meetingDays,
+    meetingTime: payload.meetingTime,
+    meetingLocation: payload.meetingLocation,
+    catalogDescription: payload.catalogDescription,
+    studentSummary: payload.studentSummary,
+    descriptionSource: payload.descriptionSource,
+  });
+
+  if (payload.keyConcepts.length > 0) {
+    await db.insert(parseTestConcept).values(
+      payload.keyConcepts.map((label, index) => ({
+        id: randomUUID(),
+        courseId,
+        label,
+        displayOrder: index,
+      })),
+    );
+  }
+
+  if (payload.gradingBreakdown.length > 0) {
+    await db.insert(parseTestGradingItem).values(
+      payload.gradingBreakdown.map((item, index) => ({
+        id: randomUUID(),
+        courseId,
+        label: item.label,
+        weightPercent: item.weight,
+        sourceSnippet: item.sourceSnippet,
+        displayOrder: index,
+      })),
+    );
+  }
+
+  if (payload.assignments.length > 0) {
+    await db.insert(parseTestAssignment).values(
+      payload.assignments.map((assignment, index) => ({
+        id: randomUUID(),
+        courseId,
+        title: assignment.title,
+        category: assignment.category,
+        dateText: assignment.dateText,
+        dueAt: parseIsoDate(assignment.isoDate),
+        timeText: assignment.timeText,
+        weightPercent: assignment.weight,
+        sourceSnippet: assignment.sourceSnippet,
+        confidence: assignment.confidence,
+        displayOrder: index,
+      })),
+    );
+  }
+
+  await db
+    .update(parseTestRun)
+    .set({
+      parseStatus: "completed",
+      geminiFileUri,
+      warnings: payload.warnings,
+      updatedAt: new Date(),
+    })
+    .where(eq(parseTestRun.id, runId));
+}
+
+async function replaceCurrentRunWithFailure(runId: string, message: string) {
+  await db.delete(parseTestRun).where(eq(parseTestRun.id, runId));
+  await db.insert(parseTestRun).values({
+    id: runId,
+    scope: PARSE_TEST_SCOPE,
+    contentHash: "",
+    originalFileName: "failed-parse",
+    mimeType: "application/pdf",
+    fileSizeBytes: 0,
+    parseStatus: "failed",
+    parseModel: getParseTestModel(),
+    warnings: [message],
+  });
 }
 
 export async function getParseTestViewModel(): Promise<ParseTestViewModel | null> {
@@ -364,92 +484,21 @@ export async function replaceParseTestWithUpload(params: {
 
   const runId = randomUUID();
 
-  await db.transaction(async (tx) => {
-    await tx.delete(parseTestRun).where(eq(parseTestRun.scope, PARSE_TEST_SCOPE));
-    await tx.insert(parseTestRun).values({
-      id: runId,
-      scope: PARSE_TEST_SCOPE,
-      contentHash,
-      originalFileName: fileName,
-      mimeType,
-      fileSizeBytes,
-      parseStatus: "processing",
-      parseModel,
-      warnings: [],
-    });
+  await replaceCurrentRunWithProcessing({
+    runId,
+    contentHash,
+    fileName,
+    mimeType,
+    fileSizeBytes,
+    parseModel,
   });
 
   try {
     const { payload, geminiFileUri } = await parseSyllabusWithGemini(fileName, fileBuffer);
-    const courseId = randomUUID();
-
-    await db.transaction(async (tx) => {
-      await tx.insert(parseTestCourse).values({
-        id: courseId,
-        runId,
-        title: payload.courseTitle,
-        courseCode: payload.courseCode,
-        term: payload.term,
-        instructorName: payload.instructorName,
-        meetingDays: payload.meetingDays,
-        meetingTime: payload.meetingTime,
-        meetingLocation: payload.meetingLocation,
-        catalogDescription: payload.catalogDescription,
-        studentSummary: payload.studentSummary,
-        descriptionSource: payload.descriptionSource,
-      });
-
-      if (payload.keyConcepts.length > 0) {
-        await tx.insert(parseTestConcept).values(
-          payload.keyConcepts.map((label, index) => ({
-            id: randomUUID(),
-            courseId,
-            label,
-            displayOrder: index,
-          })),
-        );
-      }
-
-      if (payload.gradingBreakdown.length > 0) {
-        await tx.insert(parseTestGradingItem).values(
-          payload.gradingBreakdown.map((item, index) => ({
-            id: randomUUID(),
-            courseId,
-            label: item.label,
-            weightPercent: item.weight,
-            sourceSnippet: item.sourceSnippet,
-            displayOrder: index,
-          })),
-        );
-      }
-
-      if (payload.assignments.length > 0) {
-        await tx.insert(parseTestAssignment).values(
-          payload.assignments.map((assignment, index) => ({
-            id: randomUUID(),
-            courseId,
-            title: assignment.title,
-            category: assignment.category,
-            dateText: assignment.dateText,
-            dueAt: parseIsoDate(assignment.isoDate),
-            timeText: assignment.timeText,
-            weightPercent: assignment.weight,
-            sourceSnippet: assignment.sourceSnippet,
-            confidence: assignment.confidence,
-            displayOrder: index,
-          })),
-        );
-      }
-
-      await tx
-        .update(parseTestRun)
-        .set({
-          parseStatus: "completed",
-          geminiFileUri,
-          warnings: payload.warnings,
-          updatedAt: new Date(),
-        })
-        .where(eq(parseTestRun.id, runId));
+    await persistCompletedParse({
+      runId,
+      geminiFileUri,
+      payload,
     });
 
     const viewModel = await getParseTestViewModel();
@@ -461,14 +510,7 @@ export async function replaceParseTestWithUpload(params: {
   } catch (error) {
     const publicError = toPublicError(error);
 
-    await db
-      .update(parseTestRun)
-      .set({
-        parseStatus: "failed",
-        warnings: [publicError.message],
-        updatedAt: new Date(),
-      })
-      .where(eq(parseTestRun.id, runId));
+    await replaceCurrentRunWithFailure(runId, publicError.message);
 
     throw publicError;
   }

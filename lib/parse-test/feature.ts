@@ -3,6 +3,5 @@ export function isParseTestEnabled() {
 }
 
 export function getParseTestModel() {
-  return process.env.GEMINI_PARSE_MODEL ?? "gemini-2.0-flash";
+  return process.env.GEMINI_PARSE_MODEL ?? "gemini-2.5-flash-lite";
 }
-
