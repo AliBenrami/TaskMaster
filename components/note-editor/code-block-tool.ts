@@ -31,6 +31,7 @@ export class CodeBlockTool implements BlockTool {
   private textarea: HTMLTextAreaElement | null = null;
   private highlightSurface: HTMLPreElement | null = null;
   private highlightCodeNode: HTMLElement | null = null;
+  private layoutFrameId: number | null = null;
 
   private readonly handleTextareaInput = () => {
     this.syncData();
@@ -129,6 +130,7 @@ export class CodeBlockTool implements BlockTool {
     this.syncHighlight();
     this.syncTextareaHeight();
     this.handleTextareaScroll();
+    this.scheduleLayoutSync();
 
     return wrapper;
   }
@@ -143,6 +145,11 @@ export class CodeBlockTool implements BlockTool {
   }
 
   public destroy() {
+    if (this.layoutFrameId !== null) {
+      window.cancelAnimationFrame(this.layoutFrameId);
+      this.layoutFrameId = null;
+    }
+
     this.textarea?.removeEventListener("input", this.handleTextareaInput);
     this.textarea?.removeEventListener("scroll", this.handleTextareaScroll);
     this.textarea?.removeEventListener("keydown", this.handleTextareaKeyDown);
@@ -150,6 +157,32 @@ export class CodeBlockTool implements BlockTool {
     this.textarea = null;
     this.highlightSurface = null;
     this.highlightCodeNode = null;
+  }
+
+  private scheduleLayoutSync() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const runLayoutSync = () => {
+      this.syncTextareaHeight();
+      this.handleTextareaScroll();
+    };
+
+    if (this.layoutFrameId !== null) {
+      window.cancelAnimationFrame(this.layoutFrameId);
+    }
+
+    // Re-measure after the block is attached and painted. The immediate call in
+    // render() can happen before Editor.js finalizes layout, which makes the
+    // initial code block appear too short until the user edits it.
+    this.layoutFrameId = window.requestAnimationFrame(() => {
+      runLayoutSync();
+      this.layoutFrameId = window.requestAnimationFrame(() => {
+        runLayoutSync();
+        this.layoutFrameId = null;
+      });
+    });
   }
 
   private syncData() {
