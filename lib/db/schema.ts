@@ -1,5 +1,20 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  pgEnum,
+  text,
+  timestamp,
+  boolean,
+  jsonb,
+  integer,
+  index,
+} from "drizzle-orm/pg-core";
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+export const noteSourceEnum = pgEnum("note_source", ["manual", "upload"]);
+
+// ── Auth tables (existing — unchanged) ───────────────────────────────────────
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -73,9 +88,50 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+// ── Notes table ──────────────────────────────────────────────────────────────
+
+export const note = pgTable(
+  "note",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    title: text("title").notNull().default("Untitled"),
+
+    // Editor.js JSON output — stored as-is in a jsonb column
+    content: jsonb("content"),
+
+    // "manual" = typed in editor, "upload" = scanned/uploaded file
+    sourceType: noteSourceEnum("source_type").notNull().default("manual"),
+
+    // Upload-specific metadata (null for manual notes)
+    fileUrl: text("file_url"),
+    fileName: text("file_name"),
+    mimeType: text("mime_type"),
+    fileSize: integer("file_size"), // bytes
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("note_userId_idx").on(table.userId),
+    index("note_createdAt_idx").on(table.createdAt),
+  ],
+);
+
+// ── Relations ────────────────────────────────────────────────────────────────
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  notes: many(note),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -88,6 +144,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const noteRelations = relations(note, ({ one }) => ({
+  user: one(user, {
+    fields: [note.userId],
     references: [user.id],
   }),
 }));
