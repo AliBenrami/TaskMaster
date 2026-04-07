@@ -9,14 +9,14 @@ type CodeBlockViewProps = {
 
 export function CodeBlockView({ data }: CodeBlockViewProps) {
   return (
-    <pre className="codex-code-block__surface">
+    <pre className="note-code-block__surface">
       <code
-        className="hljs codex-code-block__code"
+        className="hljs note-code-block__code"
         dangerouslySetInnerHTML={{
           __html:
             data.code.trim().length > 0
               ? highlightCode(data.code)
-              : "<span class=\"codex-code-block__placeholder\">No code yet.</span>",
+              : "<span class=\"note-code-block__placeholder\">No code yet.</span>",
         }}
       />
     </pre>

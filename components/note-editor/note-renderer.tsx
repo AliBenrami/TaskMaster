@@ -190,7 +190,7 @@ export function NoteRenderer({ document }: { document: NoteDocument }) {
   }
 
   return (
-    <article className="codex-note-renderer space-y-5">
+    <article className="note-renderer space-y-5">
       {document.blocks.map((block) => renderBlock(block as NoteBlock))}
     </article>
   );

@@ -95,24 +95,24 @@ export class CodeBlockTool implements BlockTool {
 
   public render() {
     const wrapper = document.createElement("div");
-    wrapper.className = "codex-code-block";
+    wrapper.className = "note-code-block";
 
     const editorSurface = document.createElement("div");
-    editorSurface.className = "codex-code-block__editor";
+    editorSurface.className = "note-code-block__editor";
 
     const surface = document.createElement("pre");
-    surface.className = "codex-code-block__surface";
+    surface.className = "note-code-block__surface";
     surface.setAttribute("aria-hidden", "true");
     this.highlightSurface = surface;
 
     this.highlightCodeNode = document.createElement("code");
-    this.highlightCodeNode.className = "hljs codex-code-block__code";
+    this.highlightCodeNode.className = "hljs note-code-block__code";
     surface.append(this.highlightCodeNode);
     editorSurface.append(surface);
 
     if (!this.readOnly) {
       this.textarea = document.createElement("textarea");
-      this.textarea.className = "codex-code-block__textarea";
+      this.textarea.className = "note-code-block__textarea";
       this.textarea.value = this.data.code;
       this.textarea.placeholder = "Paste or write code here.";
       this.textarea.rows = 1;
@@ -165,7 +165,7 @@ export class CodeBlockTool implements BlockTool {
 
     if (this.data.code.trim().length === 0) {
       this.highlightCodeNode.innerHTML = this.readOnly
-        ? "<span class=\"codex-code-block__placeholder\">No code content.</span>"
+        ? "<span class=\"note-code-block__placeholder\">No code content.</span>"
         : "";
       return;
     }
