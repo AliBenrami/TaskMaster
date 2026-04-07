@@ -75,8 +75,8 @@ body {
 
 .note-editor .ce-block__content,
 .note-editor .ce-toolbar__content {
-  max-width: none;
-  border-radius: 0.9rem;
+  max-width: 100%;
+  border-radius: 0.75rem;
   transition:
     background-color 140ms ease,
     box-shadow 140ms ease,
@@ -94,10 +94,31 @@ body {
   color: inherit;
 }
 
+.note-editor .ce-paragraph {
+  font-size: 1.05rem;
+  line-height: 1.85;
+}
+
 .note-editor .ce-paragraph[data-placeholder]:empty::before,
 .note-editor .codex-editor__redactor [contenteditable="true"][data-placeholder]:empty::before,
 .note-editor .cdx-input[data-placeholder]::before {
   color: var(--note-muted-foreground);
+}
+
+.note-editor .ce-block:first-child .ce-paragraph[data-placeholder]:empty::before,
+.note-editor .ce-block:first-child .codex-editor__redactor [contenteditable="true"][data-placeholder]:empty::before {
+  font-size: clamp(2.25rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: color-mix(in srgb, var(--foreground) 28%, transparent);
+}
+
+.note-editor .ce-block:first-child .ce-block__content {
+  padding-top: 0.25rem;
+}
+
+.note-editor .codex-editor__redactor {
+  padding-bottom: 12rem;
 }
 
 .note-editor .ce-inline-toolbar,

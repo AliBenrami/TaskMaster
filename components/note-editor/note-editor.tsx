@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type EditorJS from "@editorjs/editorjs";
 import type { BlockToolConstructable } from "@editorjs/editorjs";
 import type { NoteDocument, NoteImageFileData } from "@/lib/notes/types";
@@ -16,8 +16,6 @@ export type NoteEditorProps = {
   readOnly?: boolean;
 };
 
-type SaveState = "idle" | "saving" | "saved" | "error";
-
 const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
 
 async function uploadImageToDataUrl(file: File): Promise<NoteImageFileData> {
@@ -26,7 +24,9 @@ async function uploadImageToDataUrl(file: File): Promise<NoteImageFileData> {
   }
 
   if (file.size > MAX_INLINE_IMAGE_BYTES) {
-    throw new Error("Images larger than 2 MB are not supported by the temporary inline uploader.");
+    throw new Error(
+      "Images larger than 2 MB are not supported by the temporary inline uploader.",
+    );
   }
 
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -67,19 +67,24 @@ export function NoteEditor({
   const editorRef = useRef<EditorJS | null>(null);
   const latestDocumentRef = useRef<NoteDocument>(initialDocument);
   const changeTimeoutRef = useRef<number | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const emitDocumentChange = useEffectEvent(async () => {
     if (!editorRef.current) {
       return;
     }
 
-    const saved = await editorRef.current.save();
-    const document = NoteDocumentSchema.parse(saved);
-    latestDocumentRef.current = document;
-    onDocumentChange?.(document);
+    try {
+      const saved = await editorRef.current.save();
+      const document = NoteDocumentSchema.parse(saved);
+      latestDocumentRef.current = document;
+      onDocumentChange?.(document);
+
+      if (onSave) {
+        await onSave(document);
+      }
+    } catch (error) {
+      console.error("Failed to persist note changes.", error);
+    }
   });
 
   const resolveImageUpload = useEffectEvent(async (file: File) => {
@@ -92,33 +97,6 @@ export function NoteEditor({
       file: resolvedFile,
     };
   });
-
-  const handleSaveClick = async () => {
-    if (!editorRef.current) {
-      return;
-    }
-
-    setSaveState("saving");
-    setSaveMessage(null);
-
-    try {
-      const saved = await editorRef.current.save();
-      const document = NoteDocumentSchema.parse(saved);
-
-      latestDocumentRef.current = document;
-      onDocumentChange?.(document);
-
-      if (onSave) {
-        await onSave(document);
-      }
-
-      setSaveState("saved");
-      setSaveMessage(`Saved at ${new Date().toLocaleTimeString()}`);
-    } catch (error) {
-      setSaveState("error");
-      setSaveMessage(error instanceof Error ? error.message : "Failed to save note");
-    }
-  };
 
   useEffect(() => {
     let disposed = false;
@@ -160,11 +138,17 @@ export function NoteEditor({
         autofocus: !readOnly,
         readOnly,
         minHeight: 0,
-        data: initialDocument.blocks.length > 0 ? initialDocument : { ...emptyNoteDocument },
+        data:
+          initialDocument.blocks.length > 0
+            ? initialDocument
+            : { ...emptyNoteDocument },
         tools: {
           paragraph: {
             class: paragraphTool,
             inlineToolbar: true,
+            config: {
+              placeholder: "press '/' for commands",
+            },
           },
           header: {
             class: headerTool,
@@ -227,14 +211,9 @@ export function NoteEditor({
 
       try {
         await editor.isReady;
-
-        if (!disposed) {
-          setIsReady(true);
-        }
       } catch (error) {
         if (!disposed) {
-          setSaveState("error");
-          setSaveMessage(error instanceof Error ? error.message : "Failed to initialize the editor");
+          console.error("Failed to initialize the editor.", error);
         }
       }
     }
@@ -243,7 +222,6 @@ export function NoteEditor({
 
     return () => {
       disposed = true;
-      setIsReady(false);
 
       if (changeTimeoutRef.current) {
         window.clearTimeout(changeTimeoutRef.current);
@@ -253,34 +231,17 @@ export function NoteEditor({
       editorRef.current = null;
 
       if (editor) {
-        void editor.isReady
-          .then(() => editor.destroy())
-          .catch(() => undefined);
+        void editor.isReady.then(() => editor.destroy()).catch(() => undefined);
       }
     };
   }, [initialDocument, readOnly]);
 
   return (
-    <section className="note-editor rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-      {!readOnly ? (
-        <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
-          <div className="text-zinc-500">
-            Block editor with rich text, images, and MathLive equation blocks.
-          </div>
-          <div className="flex items-center gap-3">
-            {saveMessage ? <span className="text-xs text-zinc-500">{saveMessage}</span> : null}
-            <button
-              type="button"
-              onClick={() => void handleSaveClick()}
-              disabled={!isReady || saveState === "saving"}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700"
-            >
-              {saveState === "saving" ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <div ref={holderRef} className="px-4 py-4" />
+    <section className="note-editor relative min-h-[78vh]">
+      <div
+        ref={holderRef}
+        className="mx-auto min-h-[72vh] w-full max-w-4xl px-2 pb-24 pt-8 md:px-8 md:pb-32 md:pt-12"
+      />
     </section>
   );
 }
