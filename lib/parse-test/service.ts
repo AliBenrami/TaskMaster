@@ -361,6 +361,20 @@ function parsePayloadText(responseText: string) {
   return normalisePayload(result.data);
 }
 
+function assertLooksLikeSyllabus(fileName: string, fileBuffer: Buffer) {
+  const fileNameLooksValid = fileName.toLowerCase().includes("syllabus");
+  const rawPdfTextLooksValid = fileBuffer.toString("latin1").toLowerCase().includes("syllabus");
+
+  if (fileNameLooksValid || rawPdfTextLooksValid) {
+    return;
+  }
+
+  throw new ParseTestError(
+    "This PDF does not appear to be a syllabus. For now ParseTest only accepts files whose name or PDF text contains the term 'syllabus'.",
+    422,
+  );
+}
+
 function toPublicError(error: unknown) {
   if (error instanceof ParseTestError) {
     return error;
@@ -402,6 +416,7 @@ async function parseSyllabusWithGemini(fileName: string, fileBuffer: Buffer) {
   const ai = getGenAiClient();
 
   try {
+    assertLooksLikeSyllabus(fileName, fileBuffer);
     await writeFile(tempFilePath, fileBuffer);
 
     const uploadedFile = await ai.files.upload({
