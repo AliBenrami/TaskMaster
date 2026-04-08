@@ -1,23 +1,28 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-type ParseTestClientProps = {
-  hasPreview: boolean;
-};
-
-export function ParseTestClient({ hasPreview }: ParseTestClientProps) {
+export function ParseTestClient({ hasPreview }: { hasPreview: boolean }) {
   const router = useRouter();
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [isNavigating, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(formData: FormData) {
-    setIsUploading(true);
-    setMessage(null);
     setError(null);
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      setMessage(null);
+      setError("Choose a syllabus PDF before starting the parse.");
+      return;
+    }
+
+    setIsUploading(true);
+    setMessage("Parsing the syllabus and saving the singleton preview to SQL.");
 
     try {
       const response = await fetch("/api/parse-test", {
@@ -25,113 +30,131 @@ export function ParseTestClient({ hasPreview }: ParseTestClientProps) {
         body: formData,
       });
 
-      const data = (await response.json()) as
-        | { ok: true; isDuplicate: boolean }
-        | { error?: string };
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; isDuplicate?: boolean }
+        | null;
 
-      if (!response.ok || !("ok" in data)) {
-        const errorMessage =
-          "error" in data ? data.error : "ParseTest failed to upload the syllabus.";
-        throw new Error(errorMessage ?? "ParseTest failed to upload the syllabus.");
+      if (!response.ok) {
+        throw new Error(payload?.error || "ParseTest could not parse the uploaded syllabus.");
       }
 
+      const uploadStatus = payload?.isDuplicate ? "duplicate" : "parsed";
       setMessage(
-        data.isDuplicate
-          ? "That exact PDF is already the current ParseTest preview. SQL data was reused."
+        payload?.isDuplicate
+          ? "This syllabus matches the current singleton record. Reloading the saved SQL preview."
           : "Syllabus parsed and saved to SQL. Reloading the preview from the database now.",
       );
 
       startTransition(() => {
-        const params = new URLSearchParams({
-          upload: data.isDuplicate ? "duplicate" : "parsed",
-          at: Date.now().toString(),
-        });
-        router.replace(`/parse-test?${params.toString()}`);
+        router.replace(`/parse-test?upload=${uploadStatus}`);
+        router.refresh();
       });
-    } catch (caughtError) {
-      const nextError =
-        caughtError instanceof Error
-          ? caughtError.message
-          : "ParseTest failed to upload the syllabus.";
-      setError(nextError);
+    } catch (submissionError) {
+      setMessage(null);
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "ParseTest hit an unexpected upload error.",
+      );
     } finally {
       setIsUploading(false);
     }
   }
 
+  const isBusy = isUploading || isNavigating;
+
   return (
-    <section className="rounded-[28px] border border-zinc-200 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
+    <section className="relative overflow-hidden rounded-[32px] border border-zinc-200 bg-white/92 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/90 lg:aspect-square">
+      <div className="absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,_rgba(24,24,27,0.08),_transparent_70%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(244,244,245,0.08),_transparent_70%)]" />
+      <div className="relative flex h-full flex-col p-6 sm:p-7">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
             ParseTest
           </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
             Upload one syllabus and replace the singleton preview
           </h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            ParseTest keeps only one saved syllabus graph in SQL. Uploading a different PDF
-            deletes the previous preview data first; uploading the same PDF reuses the current
-            record.
+          <p className="mt-4 max-w-md text-sm leading-7 text-zinc-600 dark:text-zinc-400">
+            This panel is the parsing workbench. Drop in a syllabus, run Gemini, save the
+            extracted course graph to SQL, and refresh the class-page preview on the right.
           </p>
         </div>
-        <div className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-          {hasPreview ? "Saved preview loaded from SQL" : "No saved preview yet"}
-        </div>
-      </div>
 
-      <form
-        className="mt-6 grid gap-4 rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50/80 p-5 dark:border-zinc-700 dark:bg-zinc-900/70"
-        action={handleSubmit}
-      >
-        <label
-          htmlFor="parse-test-file"
-          className="text-sm font-medium tracking-tight text-zinc-900 dark:text-zinc-100"
-        >
-          Syllabus PDF
-        </label>
-        <input
-          id="parse-test-file"
-          name="file"
-          type="file"
-          accept=".pdf,application/pdf"
-          required
-          disabled={isUploading}
-          onChange={(event) => {
-            const nextFile = event.currentTarget.files?.[0] ?? null;
-            setSelectedFileName(nextFile?.name ?? null);
-            setMessage(null);
-            setError(null);
-          }}
-          className="block w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:file:bg-zinc-100 dark:file:text-zinc-900 dark:hover:file:bg-zinc-300"
-        />
+        <form action={handleSubmit} className="mt-6 flex flex-1 flex-col gap-5">
+          <label className="group flex min-h-52 flex-1 cursor-pointer flex-col justify-between rounded-[28px] border border-dashed border-zinc-300 bg-zinc-50/90 p-5 transition hover:border-zinc-500 hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/80 dark:hover:border-zinc-500 dark:hover:bg-zinc-950">
+            <div>
+              <div className="inline-flex rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+                Syllabus PDF
+              </div>
+              <div className="mt-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+                Drop a syllabus here or browse from your device
+              </div>
+              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                ParseTest currently accepts one PDF up to 20 MB and keeps only one saved class
+                graph in SQL.
+              </p>
+            </div>
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="min-h-6 text-sm text-zinc-500 dark:text-zinc-400">
-            {selectedFileName ? `Selected: ${selectedFileName}` : "PDF only, max 20 MB."}
+            <div className="mt-5 space-y-3">
+              <div className="inline-flex rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
+                Choose PDF
+              </div>
+              <input
+                className="sr-only"
+                type="file"
+                name="file"
+                accept="application/pdf"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0] ?? null;
+                  setSelectedFileName(file?.name ?? null);
+                  setMessage(null);
+                  setError(null);
+                }}
+              />
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+                PDF only · singleton SQL preview
+              </p>
+            </div>
+          </label>
+
+          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/70">
+            <div className="text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Selected file
+            </div>
+            <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              {selectedFileName || "No syllabus chosen yet"}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              {hasPreview
+                ? "Uploading a different syllabus replaces the current SQL-backed preview. Uploading the same PDF reuses it."
+                : "The first successful upload will create the singleton ParseTest preview in SQL."}
+            </p>
+          </div>
+
+          <div
+            aria-live="polite"
+            className="rounded-[24px] border border-zinc-200 bg-white/90 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-950/80"
+          >
+            {error ? (
+              <div className="text-rose-600 dark:text-rose-400">{error}</div>
+            ) : message ? (
+              <div className="text-zinc-700 dark:text-zinc-300">{message}</div>
+            ) : (
+              <div className="text-zinc-500 dark:text-zinc-400">
+                Idle. Select a syllabus PDF to generate a fresh class-page preview.
+              </div>
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={isUploading}
-            className="inline-flex items-center justify-center rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-300"
+            disabled={isBusy}
+            className="inline-flex items-center justify-center rounded-full bg-zinc-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
           >
-            {isUploading ? "Parsing syllabus..." : "Parse and save preview"}
+            {isBusy ? "Parsing and saving..." : "Parse and save preview"}
           </button>
-        </div>
-      </form>
-
-      {message ? (
-        <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-300">
-          {message}
-        </p>
-      ) : null}
-
-      {error ? (
-        <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/50 dark:text-rose-300">
-          {error}
-        </p>
-      ) : null}
+        </form>
+      </div>
     </section>
   );
 }
