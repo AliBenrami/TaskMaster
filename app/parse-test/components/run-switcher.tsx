@@ -76,7 +76,7 @@ export function ParseTestRunSwitcher({
         disabled={!prevRunId || isBusy}
         className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
       >
-        ←
+        Prev
       </button>
       <button
         type="button"
@@ -84,7 +84,7 @@ export function ParseTestRunSwitcher({
         disabled={!nextRunId || isBusy}
         className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
       >
-        →
+        Next
       </button>
       <button
         type="button"

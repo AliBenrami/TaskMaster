@@ -5,18 +5,10 @@ import { isParseTestEnabled } from "@/lib/parse-test/feature";
 import {
   deleteParseTestRun,
   getParseTestErrorResponse,
-  replaceParseTestWithUpload,
 } from "@/lib/parse-test/service";
+import { createParseTestUploadStream, jsonError } from "./streaming";
 
 export const runtime = "nodejs";
-
-function jsonError(message: string, status: number, logs?: string[]) {
-  return NextResponse.json({ error: message, logs: logs ?? [] }, { status });
-}
-
-function encodeStreamChunk(payload: Record<string, unknown>) {
-  return new TextEncoder().encode(`${JSON.stringify(payload)}\n`);
-}
 
 export async function POST(request: Request) {
   if (!isParseTestEnabled()) {
@@ -52,43 +44,12 @@ export async function POST(request: Request) {
     }
 
     const fileBuffer = Buffer.from(await fileEntry.arrayBuffer());
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const send = (payload: Record<string, unknown>) => {
-          controller.enqueue(encodeStreamChunk(payload));
-        };
-
-        send({ type: "start" });
-
-        try {
-          const result = await replaceParseTestWithUpload({
-            userId: session.user.id,
-            fileBuffer,
-            fileName: fileEntry.name,
-            mimeType: fileEntry.type,
-            fileSizeBytes: fileEntry.size,
-            onLog(message) {
-              send({ type: "log", message });
-            },
-          });
-
-          send({
-            type: "result",
-            ok: true,
-            isDuplicate: result.isDuplicate,
-            runId: result.runId,
-          });
-        } catch (error) {
-          const { message, status } = getParseTestErrorResponse(error);
-          send({
-            type: "error",
-            error: message,
-            status,
-          });
-        } finally {
-          controller.close();
-        }
-      },
+    const stream = createParseTestUploadStream({
+      userId: session.user.id,
+      fileBuffer,
+      fileName: fileEntry.name,
+      mimeType: fileEntry.type,
+      fileSizeBytes: fileEntry.size,
     });
 
     return new Response(stream, {
