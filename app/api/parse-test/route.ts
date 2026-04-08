@@ -10,8 +10,12 @@ import {
 
 export const runtime = "nodejs";
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+function jsonError(message: string, status: number, logs?: string[]) {
+  return NextResponse.json({ error: message, logs: logs ?? [] }, { status });
+}
+
+function encodeStreamChunk(payload: Record<string, unknown>) {
+  return new TextEncoder().encode(`${JSON.stringify(payload)}\n`);
 }
 
 export async function POST(request: Request) {
@@ -48,23 +52,54 @@ export async function POST(request: Request) {
     }
 
     const fileBuffer = Buffer.from(await fileEntry.arrayBuffer());
-    const result = await replaceParseTestWithUpload({
-      userId: session.user.id,
-      fileBuffer,
-      fileName: fileEntry.name,
-      mimeType: fileEntry.type,
-      fileSizeBytes: fileEntry.size,
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (payload: Record<string, unknown>) => {
+          controller.enqueue(encodeStreamChunk(payload));
+        };
+
+        send({ type: "start" });
+
+        try {
+          const result = await replaceParseTestWithUpload({
+            userId: session.user.id,
+            fileBuffer,
+            fileName: fileEntry.name,
+            mimeType: fileEntry.type,
+            fileSizeBytes: fileEntry.size,
+            onLog(message) {
+              send({ type: "log", message });
+            },
+          });
+
+          send({
+            type: "result",
+            ok: true,
+            isDuplicate: result.isDuplicate,
+            runId: result.runId,
+          });
+        } catch (error) {
+          const { message, status } = getParseTestErrorResponse(error);
+          send({
+            type: "error",
+            error: message,
+            status,
+          });
+        } finally {
+          controller.close();
+        }
+      },
     });
 
-    return NextResponse.json({
-      ok: true,
-      isDuplicate: result.isDuplicate,
-      runId: result.runId,
-      preview: result.viewModel,
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+      },
     });
   } catch (error) {
-    const { message, status } = getParseTestErrorResponse(error);
-    return jsonError(message, status);
+    const { message, status, details } = getParseTestErrorResponse(error);
+    return jsonError(message, status, Array.isArray(details?.logs) ? (details.logs as string[]) : []);
   }
 }
 
@@ -99,7 +134,7 @@ export async function DELETE(request: Request) {
       nextRunId: result.nextRunId,
     });
   } catch (error) {
-    const { message, status } = getParseTestErrorResponse(error);
-    return jsonError(message, status);
+    const { message, status, details } = getParseTestErrorResponse(error);
+    return jsonError(message, status, Array.isArray(details?.logs) ? (details.logs as string[]) : []);
   }
 }
