@@ -8,7 +8,7 @@ import {
   createUserContent,
   GoogleGenAI,
 } from "@google/genai";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   parseTestAssignment,
@@ -22,6 +22,7 @@ import {
 import {
   type ParseTestEventPayload,
   type ParseStatus,
+  type ParseTestRunSummary,
   type NormalizedParseTestSchedule,
   parseTestPayloadSchema,
   parseTestResponseJsonSchema,
@@ -444,17 +445,22 @@ async function parseSyllabusWithGemini(fileName: string, fileBuffer: Buffer) {
   }
 }
 
-async function getCurrentRun(userId: string) {
+async function getRunById(userId: string, runId: string) {
   const runs = await db
     .select()
     .from(parseTestRun)
-    .where(eq(parseTestRun.userId, userId))
+    .where(and(eq(parseTestRun.userId, userId), eq(parseTestRun.id, runId)))
     .limit(1);
 
   return runs[0] ?? null;
 }
 
-async function replaceCurrentRunWithProcessing(params: {
+async function getLatestCompletedRunId(userId: string) {
+  const summaries = await getParseTestRunSummaries(userId);
+  return summaries[0]?.runId ?? null;
+}
+
+async function createProcessingRun(params: {
   runId: string;
   userId: string;
   contentHash: string;
@@ -463,7 +469,6 @@ async function replaceCurrentRunWithProcessing(params: {
   fileSizeBytes: number;
   parseModel: string;
 }) {
-  await db.delete(parseTestRun).where(eq(parseTestRun.userId, params.userId));
   await db.insert(parseTestRun).values({
     id: params.runId,
     userId: params.userId,
@@ -604,7 +609,19 @@ async function replaceCurrentRunWithFailure(runId: string, userId: string, messa
 }
 
 export async function getParseTestViewModel(userId: string): Promise<ParseTestViewModel | null> {
-  const run = await getCurrentRun(userId);
+  const latestRunId = await getLatestCompletedRunId(userId);
+  if (!latestRunId) {
+    return null;
+  }
+
+  return getParseTestViewModelForRun(userId, latestRunId);
+}
+
+export async function getParseTestViewModelForRun(
+  userId: string,
+  runId: string,
+): Promise<ParseTestViewModel | null> {
+  const run = await getRunById(userId, runId);
   if (!run) {
     return null;
   }
@@ -751,6 +768,48 @@ export async function getParseTestViewModel(userId: string): Promise<ParseTestVi
   };
 }
 
+export async function getParseTestRunSummaries(userId: string): Promise<ParseTestRunSummary[]> {
+  const runs = await db
+    .select()
+    .from(parseTestRun)
+    .where(eq(parseTestRun.userId, userId))
+    .orderBy(desc(parseTestRun.updatedAt));
+
+  if (runs.length === 0) {
+    return [];
+  }
+
+  const runIds = runs.map((run) => run.id);
+  const courses = await db
+    .select({
+      runId: parseTestCourse.runId,
+      title: parseTestCourse.title,
+      courseCode: parseTestCourse.courseCode,
+      term: parseTestCourse.term,
+    })
+    .from(parseTestCourse)
+    .where(inArray(parseTestCourse.runId, runIds));
+
+  const courseByRunId = new Map(courses.map((course) => [course.runId, course]));
+
+  return runs
+    .map((run) => {
+      const course = courseByRunId.get(run.id);
+      if (!course) {
+        return null;
+      }
+
+      return {
+        runId: run.id,
+        title: course.title,
+        courseCode: course.courseCode,
+        term: course.term,
+        updatedAt: run.updatedAt.toISOString(),
+      } satisfies ParseTestRunSummary;
+    })
+    .filter((summary): summary is ParseTestRunSummary => summary !== null);
+}
+
 export async function getNormalizedParseTestSchedule(
   userId: string,
 ): Promise<NormalizedParseTestSchedule | null> {
@@ -794,23 +853,30 @@ export async function replaceParseTestWithUpload(params: {
   const { userId, fileBuffer, fileName, mimeType, fileSizeBytes } = params;
   const contentHash = createHash("sha256").update(fileBuffer).digest("hex");
   const parseModel = getParseTestModel();
-  const currentRun = await getCurrentRun(userId);
+  const userRuns = await db
+    .select()
+    .from(parseTestRun)
+    .where(eq(parseTestRun.userId, userId))
+    .orderBy(desc(parseTestRun.updatedAt));
+  const processingRun = userRuns.find((run) => run.parseStatus === "processing") ?? null;
+  const duplicateRun =
+    userRuns.find((run) => run.contentHash === contentHash && run.parseStatus === "completed") ?? null;
 
-  if (currentRun?.parseStatus === "processing") {
+  if (processingRun) {
     throw new ParseTestError("ParseTest is already processing a syllabus. Wait for it to finish and try again.", 409);
   }
 
-  if (currentRun?.contentHash === contentHash && currentRun.parseStatus === "completed") {
-    const viewModel = await getParseTestViewModel(userId);
+  if (duplicateRun) {
+    const viewModel = await getParseTestViewModelForRun(userId, duplicateRun.id);
 
     if (viewModel) {
-      return { isDuplicate: true, viewModel };
+      return { isDuplicate: true, runId: duplicateRun.id, viewModel };
     }
   }
 
   const runId = randomUUID();
 
-  await replaceCurrentRunWithProcessing({
+  await createProcessingRun({
     runId,
     userId,
     contentHash,
@@ -828,12 +894,12 @@ export async function replaceParseTestWithUpload(params: {
       payload,
     });
 
-    const viewModel = await getParseTestViewModel(userId);
+    const viewModel = await getParseTestViewModelForRun(userId, runId);
     if (!viewModel) {
       throw new ParseTestError("ParseTest saved the syllabus but could not reload the preview from SQL.", 500);
     }
 
-    return { isDuplicate: false, viewModel };
+    return { isDuplicate: false, runId, viewModel };
   } catch (error) {
     const publicError = toPublicError(error);
 
@@ -841,6 +907,19 @@ export async function replaceParseTestWithUpload(params: {
 
     throw publicError;
   }
+}
+
+export async function deleteParseTestRun(params: { userId: string; runId: string }) {
+  const run = await getRunById(params.userId, params.runId);
+
+  if (!run) {
+    throw new ParseTestError("That saved class could not be found.", 404);
+  }
+
+  await db.delete(parseTestRun).where(and(eq(parseTestRun.id, params.runId), eq(parseTestRun.userId, params.userId)));
+  const nextRunId = await getLatestCompletedRunId(params.userId);
+
+  return { nextRunId };
 }
 
 export function getParseTestErrorResponse(error: unknown) {

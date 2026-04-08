@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { MAX_PARSE_TEST_FILE_BYTES } from "@/lib/parse-test/contracts";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
-import { getParseTestErrorResponse, replaceParseTestWithUpload } from "@/lib/parse-test/service";
+import {
+  deleteParseTestRun,
+  getParseTestErrorResponse,
+  replaceParseTestWithUpload,
+} from "@/lib/parse-test/service";
 
 export const runtime = "nodejs";
 
@@ -55,7 +59,44 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       isDuplicate: result.isDuplicate,
+      runId: result.runId,
       preview: result.viewModel,
+    });
+  } catch (error) {
+    const { message, status } = getParseTestErrorResponse(error);
+    return jsonError(message, status);
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!isParseTestEnabled()) {
+    return jsonError("ParseTest is disabled.", 404);
+  }
+
+  try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      return jsonError("Sign in before deleting a saved class.", 401);
+    }
+
+    const { searchParams } = new URL(request.url);
+    const runId = searchParams.get("runId");
+
+    if (!runId) {
+      return jsonError("Provide a runId to delete.", 400);
+    }
+
+    const result = await deleteParseTestRun({
+      userId: session.user.id,
+      runId,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      nextRunId: result.nextRunId,
     });
   } catch (error) {
     const { message, status } = getParseTestErrorResponse(error);

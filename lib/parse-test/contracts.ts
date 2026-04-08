@@ -174,6 +174,14 @@ export type NormalizedParseTestSchedule = {
   parseIssues: string[];
 };
 
+export type ParseTestRunSummary = {
+  runId: string;
+  title: string;
+  courseCode: string | null;
+  term: string | null;
+  updatedAt: string;
+};
+
 export const parseTestResponseJsonSchema = {
   type: "object",
   additionalProperties: false,

@@ -4,9 +4,10 @@ import { connection } from "next/server";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireServerSession } from "@/lib/auth-session";
 import { ParseTestClient } from "./parse-test-client";
+import { ParseTestRunSwitcher } from "./run-switcher";
 import type { ParseTestViewModel } from "@/lib/parse-test/contracts";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
-import { getParseTestViewModel } from "@/lib/parse-test/service";
+import { getParseTestRunSummaries, getParseTestViewModelForRun } from "@/lib/parse-test/service";
 
 function formatDueAt(value: string | null) {
   if (!value) {
@@ -55,9 +56,36 @@ function uploadStatusLabel(uploadStatus: string | undefined) {
       return "Duplicate reuse";
     case "parsed":
       return "Fresh parse";
+    case "deleted":
+      return "Deleted";
     default:
       return "No recent upload";
   }
+}
+
+function getMeetingFallback(preview: ParseTestViewModel) {
+  const location = preview.course.meetingLocation?.toLowerCase() ?? "";
+  const summary = `${preview.course.studentSummary} ${preview.course.catalogDescription ?? ""}`.toLowerCase();
+  const looksOnline = location.includes("online") || summary.includes("asynchronous") || summary.includes("online");
+
+  if (preview.course.meetingDays || preview.course.meetingTime) {
+    return {
+      primary: [preview.course.meetingDays, preview.course.meetingTime].filter(Boolean).join(" / "),
+      secondary: preview.course.meetingLocation || "Location not clearly found",
+    };
+  }
+
+  if (looksOnline) {
+    return {
+      primary: "Asynchronous online course",
+      secondary: preview.course.meetingLocation || "No fixed weekly meeting time listed",
+    };
+  }
+
+  return {
+    primary: "Meeting days and time not clearly found",
+    secondary: preview.course.meetingLocation || "Location not clearly found",
+  };
 }
 
 function getPreviewMetrics(preview: ParseTestViewModel) {
@@ -191,13 +219,22 @@ function PreviewPane({
   preview,
   metrics,
   gradeDistributionStyle,
+  currentIndex,
+  totalCount,
+  prevRunId,
+  nextRunId,
 }: {
   preview: ParseTestViewModel;
   metrics: ReturnType<typeof getPreviewMetrics>;
   gradeDistributionStyle: ReturnType<typeof getGradeDistributionStyle>;
+  currentIndex: number;
+  totalCount: number;
+  prevRunId: string | null;
+  nextRunId: string | null;
 }) {
   const instructorContacts = preview.contacts.filter((contact) => contact.role !== "TA");
   const teachingAssistants = preview.contacts.filter((contact) => contact.role === "TA");
+  const meetingInfo = getMeetingFallback(preview);
 
   return (
     <section className="rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -234,15 +271,18 @@ function PreviewPane({
             </div>
           </div>
 
-          <div className="min-w-[240px] rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col items-start gap-4 lg:items-end">
+            <ParseTestRunSwitcher
+              currentRunId={preview.run.id}
+              currentIndex={currentIndex}
+              totalCount={totalCount}
+              prevRunId={prevRunId}
+              nextRunId={nextRunId}
+            />
+            <div className="min-w-[240px] rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="font-medium text-zinc-900 dark:text-zinc-50">Meeting info</div>
-            <div className="mt-2 text-zinc-600 dark:text-zinc-400">
-              {preview.course.meetingDays || preview.course.meetingTime
-                ? [preview.course.meetingDays, preview.course.meetingTime].filter(Boolean).join(" / ")
-                : "Meeting days and time not clearly found"}
-            </div>
-            <div className="mt-1 text-zinc-600 dark:text-zinc-400">
-              {preview.course.meetingLocation || "Location not clearly found"}
+              <div className="mt-2 text-zinc-600 dark:text-zinc-400">{meetingInfo.primary}</div>
+              <div className="mt-1 text-zinc-600 dark:text-zinc-400">{meetingInfo.secondary}</div>
             </div>
           </div>
         </div>
@@ -534,10 +574,24 @@ export default async function ParseTestPage(props: {
   const uploadStatusParam = Array.isArray(searchParams?.upload)
     ? searchParams.upload[0]
     : searchParams?.upload;
-  const preview = await getParseTestViewModel(session.user.id);
+  const runParam = Array.isArray(searchParams?.run) ? searchParams.run[0] : searchParams?.run;
+  const runSummaries = await getParseTestRunSummaries(session.user.id);
+  const selectedSummary =
+    (runParam ? runSummaries.find((summary) => summary.runId === runParam) : null) ?? runSummaries[0] ?? null;
+  const preview = selectedSummary
+    ? await getParseTestViewModelForRun(session.user.id, selectedSummary.runId)
+    : null;
   const metrics = preview ? getPreviewMetrics(preview) : null;
   const gradeDistributionStyle = preview ? getGradeDistributionStyle(preview.gradingItems) : null;
   const displayName = session.user.name || session.user.email;
+  const currentIndex = selectedSummary
+    ? runSummaries.findIndex((summary) => summary.runId === selectedSummary.runId)
+    : -1;
+  const prevRunId = currentIndex > 0 ? runSummaries[currentIndex - 1]?.runId ?? null : null;
+  const nextRunId =
+    currentIndex >= 0 && currentIndex < runSummaries.length - 1
+      ? runSummaries[currentIndex + 1]?.runId ?? null
+      : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
@@ -569,6 +623,7 @@ export default async function ParseTestPage(props: {
             courseTitle={preview?.course.title ?? null}
             events={preview?.events ?? []}
             savedAt={preview?.run.updatedAt ?? null}
+            totalSavedClasses={runSummaries.length}
           />
 
           {preview && metrics && gradeDistributionStyle ? (
@@ -576,6 +631,10 @@ export default async function ParseTestPage(props: {
               preview={preview}
               metrics={metrics}
               gradeDistributionStyle={gradeDistributionStyle}
+              currentIndex={currentIndex}
+              totalCount={runSummaries.length}
+              prevRunId={prevRunId}
+              nextRunId={nextRunId}
             />
           ) : (
             <EmptyPreviewState />

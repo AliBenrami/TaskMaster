@@ -9,6 +9,7 @@ type ParseTestClientProps = {
   courseTitle: string | null;
   events: ParseTestViewModel["events"];
   savedAt: string | null;
+  totalSavedClasses: number;
 };
 
 function formatDisplayDate(dueAt: string | null, dateText: string) {
@@ -49,6 +50,7 @@ export function ParseTestClient({
   courseTitle,
   events,
   savedAt,
+  totalSavedClasses,
 }: ParseTestClientProps) {
   const router = useRouter();
   const [isNavigating, startTransition] = useTransition();
@@ -79,7 +81,7 @@ export function ParseTestClient({
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; isDuplicate?: boolean }
+        | { error?: string; isDuplicate?: boolean; runId?: string }
         | null;
 
       if (!response.ok) {
@@ -94,7 +96,10 @@ export function ParseTestClient({
       );
 
       startTransition(() => {
-        router.replace(`/parse-test?upload=${uploadStatus}`);
+        const nextUrl = payload?.runId
+          ? `/parse-test?run=${encodeURIComponent(payload.runId)}&upload=${uploadStatus}`
+          : `/parse-test?upload=${uploadStatus}`;
+        router.replace(nextUrl);
         router.refresh();
       });
     } catch (submissionError) {
@@ -158,6 +163,9 @@ export function ParseTestClient({
             Upload a syllabus PDF, run Gemini, save the extracted data to SQL, and refresh the
             class page preview from your saved record.
           </p>
+          <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+            {totalSavedClasses} saved class{totalSavedClasses === 1 ? "" : "es"}
+          </p>
         </div>
 
         <form action={handleSubmit} className="mt-6 space-y-4">
@@ -170,8 +178,8 @@ export function ParseTestClient({
                 Choose a syllabus from your device
               </div>
               <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                ParseTest accepts one PDF up to 20 MB and keeps one current saved syllabus graph
-                per account.
+                ParseTest accepts one PDF up to 20 MB and keeps each saved syllabus graph tied to
+                your account.
               </p>
               <div className="inline-flex rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-950">
                 Browse files
@@ -200,7 +208,7 @@ export function ParseTestClient({
             </div>
             <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
               {hasPreview
-                ? "Uploading a different syllabus replaces your current SQL-backed preview. Uploading the same PDF reuses it."
+                ? "Uploading a different syllabus creates another saved class. Uploading the same PDF reuses the existing one."
                 : "The first successful upload will create your ParseTest preview in SQL."}
             </p>
           </div>

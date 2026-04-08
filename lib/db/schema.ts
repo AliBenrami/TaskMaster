@@ -7,7 +7,6 @@ import {
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -111,7 +110,7 @@ export const parseTestRun = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("parse_test_runs_user_id_idx").on(table.userId),
+    index("parse_test_runs_user_id_idx").on(table.userId),
     index("parse_test_runs_content_hash_idx").on(table.contentHash),
     index("parse_test_runs_status_idx").on(table.parseStatus),
   ],
