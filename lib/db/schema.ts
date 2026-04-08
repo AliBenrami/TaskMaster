@@ -174,6 +174,56 @@ export const parseTestAssignment = pgTable(
   ],
 );
 
+export const parseTestContact = pgTable(
+  "parse_test_contacts",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    name: text("name").notNull(),
+    email: text("email"),
+    officeHours: text("office_hours"),
+    location: text("location"),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index("parse_test_contacts_course_id_idx").on(table.courseId)],
+);
+
+export const parseTestEvent = pgTable(
+  "parse_test_events",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    category: text("category").notNull(),
+    dateText: text("date_text").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    timeText: text("time_text"),
+    location: text("location"),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("parse_test_events_course_id_idx").on(table.courseId),
+    index("parse_test_events_due_at_idx").on(table.dueAt),
+  ],
+);
+
 export const parseTestGradingItem = pgTable(
   "parse_test_grading_items",
   {
@@ -246,6 +296,8 @@ export const parseTestCourseRelations = relations(
       references: [parseTestRun.id],
     }),
     assignments: many(parseTestAssignment),
+    contacts: many(parseTestContact),
+    events: many(parseTestEvent),
     gradingItems: many(parseTestGradingItem),
     concepts: many(parseTestConcept),
   }),
@@ -254,6 +306,20 @@ export const parseTestCourseRelations = relations(
 export const parseTestAssignmentRelations = relations(parseTestAssignment, ({ one }) => ({
   course: one(parseTestCourse, {
     fields: [parseTestAssignment.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestContactRelations = relations(parseTestContact, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestContact.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestEventRelations = relations(parseTestEvent, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestEvent.courseId],
     references: [parseTestCourse.id],
   }),
 }));

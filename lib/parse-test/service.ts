@@ -13,11 +13,14 @@ import { db } from "@/lib/db";
 import {
   parseTestAssignment,
   parseTestConcept,
+  parseTestContact,
   parseTestCourse,
+  parseTestEvent,
   parseTestGradingItem,
   parseTestRun,
 } from "@/lib/db/schema";
 import {
+  type ParseTestEventPayload,
   type ParseStatus,
   PARSE_TEST_SCOPE,
   parseTestPayloadSchema,
@@ -66,6 +69,106 @@ function normalisePercent(value: number | null) {
 
   const scaled = value > 0 && value <= 1 ? value * 100 : value;
   return Math.round(scaled * 100) / 100;
+}
+
+function dedupeByKey<T>(items: T[], getKey: (item: T) => string) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = getKey(item);
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function normaliseRole(role: string) {
+  const trimmed = role.trim();
+  const lowered = trimmed.toLowerCase();
+
+  if (lowered.includes("teaching assistant") || lowered === "ta" || lowered.includes("ta ")) {
+    return "TA";
+  }
+
+  if (lowered.includes("prof")) {
+    return "Professor";
+  }
+
+  if (lowered.includes("instructor")) {
+    return "Instructor";
+  }
+
+  return trimmed;
+}
+
+function normaliseEmail(value: string | null) {
+  const normalized = normaliseNullableText(value);
+  return normalized ? normalized.toLowerCase() : null;
+}
+
+function splitExplicitDateTextVariants(dateText: string) {
+  const normalized = dateText.replace(/\s+/g, " ").trim();
+  const monthPattern =
+    /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}\b/gi;
+  const monthMatches = dedupeByKey(
+    Array.from(normalized.matchAll(monthPattern), (match) => match[0].trim()),
+    (value) => value.toLowerCase(),
+  );
+
+  if (monthMatches.length >= 2) {
+    return monthMatches;
+  }
+
+  const sameMonthMatch = normalized.match(
+    /^((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?)\s+(.+)$/i,
+  );
+
+  if (!sameMonthMatch || !/[,&-]|\band\b/i.test(normalized)) {
+    return [normalized];
+  }
+
+  const [, month, rest] = sameMonthMatch;
+  const dayMatches = dedupeByKey(
+    Array.from(rest.matchAll(/\b\d{1,2}\b/g), (match) => match[0]),
+    (value) => value,
+  );
+
+  if (dayMatches.length < 2) {
+    return [normalized];
+  }
+
+  return dayMatches.map((day) => `${month} ${day}`);
+}
+
+function expandEventDates(event: ParseTestEventPayload): ParseTestEventPayload[] {
+  if (normaliseNullableText(event.isoDate)) {
+    return [event];
+  }
+
+  const variants = splitExplicitDateTextVariants(event.dateText);
+  if (variants.length <= 1) {
+    return [event];
+  }
+
+  return variants.map((dateText) => ({
+    ...event,
+    dateText,
+  }));
+}
+
+function toAssignmentBackedEvent(assignment: ParseTestPayload["assignments"][number]): ParseTestEventPayload {
+  return {
+    title: assignment.title,
+    category: assignment.category,
+    dateText: assignment.dateText,
+    isoDate: assignment.isoDate,
+    timeText: assignment.timeText,
+    location: null,
+    sourceSnippet: assignment.sourceSnippet,
+  };
 }
 
 function isHighSignalWarning(warning: string) {
@@ -120,8 +223,14 @@ Rules:
 - studentSummary must be a practical 2-3 sentence rewrite for a student dashboard.
 - descriptionSource must be one of: catalog_description, course_objectives, learning_outcomes, inferred_from_topics.
 - keyConcepts should contain 4-15 concise topic labels.
+- contacts should include the primary instructor and all teaching assistants when the syllabus provides them.
+- Use role values like Professor and TA when applicable.
+- contacts may omit email, officeHours, or location only when the syllabus does not provide them.
 - gradingBreakdown should include the major categories and weights only when the syllabus explicitly gives them.
 - assignments should include all discernible deadlines, exams, quizzes, projects, papers, labs, discussions, and final deliverables.
+- events should include every explicit calendar-dated syllabus item, including exams, assignments, presentations, holidays, cancellations, or special meetings.
+- Do not include recurring weekly class meetings in events unless the syllabus gives a specific calendar date.
+- If one syllabus line contains multiple explicit dates, return separate event objects for each date.
 - Preserve the syllabus wording in dateText.
 - Only set isoDate when the syllabus includes an explicit calendar date.
 - If a date is relative, unclear, or only says something like "Week 4", leave isoDate null.
@@ -135,6 +244,56 @@ Rules:
 }
 
 function normalisePayload(payload: ParseTestPayload): ParseTestPayload {
+  const assignments = payload.assignments.map((assignment) => ({
+    ...assignment,
+    title: assignment.title.trim(),
+    category: assignment.category.trim(),
+    dateText: assignment.dateText.trim(),
+    isoDate: normaliseNullableText(assignment.isoDate),
+    timeText: normaliseNullableText(assignment.timeText),
+    weight: normalisePercent(assignment.weight),
+    sourceSnippet: assignment.sourceSnippet.trim(),
+  }));
+
+  const contacts = dedupeByKey(
+    payload.contacts
+      .map((contact) => ({
+        ...contact,
+        role: normaliseRole(contact.role),
+        name: contact.name.trim(),
+        email: normaliseEmail(contact.email),
+        officeHours: normaliseNullableText(contact.officeHours),
+        location: normaliseNullableText(contact.location),
+        sourceSnippet: contact.sourceSnippet.trim(),
+      }))
+      .filter((contact) => contact.name.length > 0),
+    (contact) => `${contact.role.toLowerCase()}|${contact.name.toLowerCase()}|${contact.email ?? ""}`,
+  );
+
+  const directEvents = payload.events
+    .map((event) => ({
+      ...event,
+      title: event.title.trim(),
+      category: event.category.trim(),
+      dateText: event.dateText.trim(),
+      isoDate: normaliseNullableText(event.isoDate),
+      timeText: normaliseNullableText(event.timeText),
+      location: normaliseNullableText(event.location),
+      sourceSnippet: event.sourceSnippet.trim(),
+    }))
+    .flatMap(expandEventDates);
+
+  const assignmentBackedEvents = assignments.map(toAssignmentBackedEvent).flatMap(expandEventDates);
+  const events = dedupeByKey([...directEvents, ...assignmentBackedEvents], (event) =>
+    [
+      event.title.trim().toLowerCase(),
+      event.category.trim().toLowerCase(),
+      (event.isoDate ?? "").toLowerCase(),
+      event.dateText.trim().toLowerCase(),
+      (event.timeText ?? "").toLowerCase(),
+    ].join("|"),
+  );
+
   return {
     ...payload,
     courseCode: normaliseNullableText(payload.courseCode),
@@ -147,22 +306,15 @@ function normalisePayload(payload: ParseTestPayload): ParseTestPayload {
     keyConcepts: payload.keyConcepts
       .map((concept) => concept.trim())
       .filter((concept, index, list) => concept.length > 0 && list.indexOf(concept) === index),
+    contacts,
     gradingBreakdown: payload.gradingBreakdown.map((item) => ({
       ...item,
       label: item.label.trim(),
       weight: normalisePercent(item.weight) ?? 0,
       sourceSnippet: item.sourceSnippet.trim(),
     })),
-    assignments: payload.assignments.map((assignment) => ({
-      ...assignment,
-      title: assignment.title.trim(),
-      category: assignment.category.trim(),
-      dateText: assignment.dateText.trim(),
-      isoDate: normaliseNullableText(assignment.isoDate),
-      timeText: normaliseNullableText(assignment.timeText),
-      weight: normalisePercent(assignment.weight),
-      sourceSnippet: assignment.sourceSnippet.trim(),
-    })),
+    assignments,
+    events,
     warnings: payload.warnings
       .map((warning) => warning.trim())
       .filter(
@@ -344,6 +496,22 @@ async function persistCompletedParse(params: {
     );
   }
 
+  if (payload.contacts.length > 0) {
+    await db.insert(parseTestContact).values(
+      payload.contacts.map((contact, index) => ({
+        id: randomUUID(),
+        courseId,
+        role: contact.role,
+        name: contact.name,
+        email: contact.email,
+        officeHours: contact.officeHours,
+        location: contact.location,
+        sourceSnippet: contact.sourceSnippet,
+        displayOrder: index,
+      })),
+    );
+  }
+
   if (payload.gradingBreakdown.length > 0) {
     await db.insert(parseTestGradingItem).values(
       payload.gradingBreakdown.map((item, index) => ({
@@ -369,6 +537,23 @@ async function persistCompletedParse(params: {
         timeText: assignment.timeText,
         weightPercent: assignment.weight,
         sourceSnippet: assignment.sourceSnippet,
+        displayOrder: index,
+      })),
+    );
+  }
+
+  if (payload.events.length > 0) {
+    await db.insert(parseTestEvent).values(
+      payload.events.map((event, index) => ({
+        id: randomUUID(),
+        courseId,
+        title: event.title,
+        category: event.category,
+        dateText: event.dateText,
+        dueAt: parseIsoDate(event.isoDate),
+        timeText: event.timeText,
+        location: event.location,
+        sourceSnippet: event.sourceSnippet,
         displayOrder: index,
       })),
     );
@@ -417,15 +602,49 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
     return null;
   }
 
-  const [concepts, gradingItems, assignments] = await Promise.all([
+  const [concepts, contacts, gradingItems, assignments, events] = await Promise.all([
     db.select().from(parseTestConcept).where(eq(parseTestConcept.courseId, course.id)),
+    db.select().from(parseTestContact).where(eq(parseTestContact.courseId, course.id)),
     db.select().from(parseTestGradingItem).where(eq(parseTestGradingItem.courseId, course.id)),
     db.select().from(parseTestAssignment).where(eq(parseTestAssignment.courseId, course.id)),
+    db.select().from(parseTestEvent).where(eq(parseTestEvent.courseId, course.id)),
   ]);
 
   const sortedConcepts = [...concepts].sort((a, b) => a.displayOrder - b.displayOrder);
+  const sortedContacts = [...contacts].sort((a, b) => {
+    const rank = (role: string) => {
+      const lowered = role.toLowerCase();
+      if (lowered === "professor") {
+        return 0;
+      }
+      if (lowered === "instructor") {
+        return 1;
+      }
+      if (lowered === "ta") {
+        return 2;
+      }
+      return 3;
+    };
+
+    return rank(a.role) - rank(b.role) || a.displayOrder - b.displayOrder;
+  });
   const sortedGradingItems = [...gradingItems].sort((a, b) => a.displayOrder - b.displayOrder);
   const sortedAssignments = [...assignments].sort((a, b) => {
+    if (a.dueAt && b.dueAt) {
+      return a.dueAt.getTime() - b.dueAt.getTime() || a.displayOrder - b.displayOrder;
+    }
+
+    if (a.dueAt) {
+      return -1;
+    }
+
+    if (b.dueAt) {
+      return 1;
+    }
+
+    return a.displayOrder - b.displayOrder;
+  });
+  const sortedEvents = [...events].sort((a, b) => {
     if (a.dueAt && b.dueAt) {
       return a.dueAt.getTime() - b.dueAt.getTime() || a.displayOrder - b.displayOrder;
     }
@@ -469,6 +688,16 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
       label: concept.label,
       displayOrder: concept.displayOrder,
     })),
+    contacts: sortedContacts.map((contact) => ({
+      id: contact.id,
+      role: contact.role,
+      name: contact.name,
+      email: contact.email,
+      officeHours: contact.officeHours,
+      location: contact.location,
+      sourceSnippet: contact.sourceSnippet,
+      displayOrder: contact.displayOrder,
+    })),
     gradingItems: sortedGradingItems.map((item) => ({
       id: item.id,
       label: item.label,
@@ -486,6 +715,17 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
       weightPercent: normalisePercent(assignment.weightPercent),
       sourceSnippet: assignment.sourceSnippet,
       displayOrder: assignment.displayOrder,
+    })),
+    events: sortedEvents.map((event) => ({
+      id: event.id,
+      title: event.title,
+      category: event.category,
+      dateText: event.dateText,
+      dueAt: event.dueAt ? event.dueAt.toISOString() : null,
+      timeText: event.timeText,
+      location: event.location,
+      sourceSnippet: event.sourceSnippet,
+      displayOrder: event.displayOrder,
     })),
   };
 }
