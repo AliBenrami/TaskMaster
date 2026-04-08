@@ -13,8 +13,9 @@ type AuthFormProps = {
 
 function serializeDebugValue(value: unknown) {
   if (value instanceof Error) {
+    const errorRecord = value as unknown as Record<string, unknown>;
     const withProps = Object.fromEntries(
-      Object.getOwnPropertyNames(value).map((key) => [key, (value as Record<string, unknown>)[key]]),
+      Object.getOwnPropertyNames(value).map((key) => [key, errorRecord[key]]),
     );
 
     return JSON.stringify(
