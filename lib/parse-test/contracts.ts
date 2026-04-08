@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-export const PARSE_TEST_SCOPE = "global";
 export const MAX_PARSE_TEST_FILE_BYTES = 20 * 1024 * 1024;
 
 export const parseStatusValues = ["processing", "completed", "failed"] as const;
@@ -52,11 +51,14 @@ const eventSchema = z.object({
 export const parseTestPayloadSchema = z.object({
   courseTitle: z.string().trim().min(1).max(200),
   courseCode: z.string().trim().max(100).nullable(),
+  courseSection: z.string().trim().max(100).nullable(),
   term: z.string().trim().max(120).nullable(),
   instructorName: z.string().trim().max(160).nullable(),
   meetingDays: z.string().trim().max(160).nullable(),
   meetingTime: z.string().trim().max(160).nullable(),
   meetingLocation: z.string().trim().max(200).nullable(),
+  requiredMaterials: z.array(z.string().trim().min(1).max(300)).max(30),
+  homeworkTools: z.array(z.string().trim().min(1).max(200)).max(20),
   catalogDescription: z.string().trim().max(4000).nullable(),
   studentSummary: z.string().trim().min(1).max(1000),
   descriptionSource: z.enum(descriptionSourceValues),
@@ -91,11 +93,14 @@ export type ParseTestViewModel = {
     id: string;
     title: string;
     courseCode: string | null;
+    courseSection: string | null;
     term: string | null;
     instructorName: string | null;
     meetingDays: string | null;
     meetingTime: string | null;
     meetingLocation: string | null;
+    requiredMaterials: string[];
+    homeworkTools: string[];
     catalogDescription: string | null;
     studentSummary: string;
     descriptionSource: DescriptionSource;
@@ -146,17 +151,43 @@ export type ParseTestViewModel = {
   }>;
 };
 
+export type NormalizedParseTestSchedule = {
+  course: {
+    id: string;
+    title: string;
+    courseCode: string | null;
+    courseSection: string | null;
+    term: string | null;
+    instructorName: string | null;
+    meetingDays: string | null;
+    meetingTime: string | null;
+    meetingLocation: string | null;
+    requiredMaterials: string[];
+    homeworkTools: string[];
+    summary: string;
+  };
+  contacts: ParseTestViewModel["contacts"];
+  gradingItems: ParseTestViewModel["gradingItems"];
+  topics: ParseTestViewModel["concepts"];
+  assignments: ParseTestViewModel["assignments"];
+  events: ParseTestViewModel["events"];
+  parseIssues: string[];
+};
+
 export const parseTestResponseJsonSchema = {
   type: "object",
   additionalProperties: false,
   propertyOrdering: [
     "courseTitle",
     "courseCode",
+    "courseSection",
     "term",
     "instructorName",
     "meetingDays",
     "meetingTime",
     "meetingLocation",
+    "requiredMaterials",
+    "homeworkTools",
     "catalogDescription",
     "studentSummary",
     "descriptionSource",
@@ -169,6 +200,8 @@ export const parseTestResponseJsonSchema = {
   ],
   required: [
     "courseTitle",
+    "requiredMaterials",
+    "homeworkTools",
     "studentSummary",
     "descriptionSource",
     "keyConcepts",
@@ -181,11 +214,20 @@ export const parseTestResponseJsonSchema = {
   properties: {
     courseTitle: { type: "string" },
     courseCode: { anyOf: [{ type: "string" }, { type: "null" }] },
+    courseSection: { anyOf: [{ type: "string" }, { type: "null" }] },
     term: { anyOf: [{ type: "string" }, { type: "null" }] },
     instructorName: { anyOf: [{ type: "string" }, { type: "null" }] },
     meetingDays: { anyOf: [{ type: "string" }, { type: "null" }] },
     meetingTime: { anyOf: [{ type: "string" }, { type: "null" }] },
     meetingLocation: { anyOf: [{ type: "string" }, { type: "null" }] },
+    requiredMaterials: {
+      type: "array",
+      items: { type: "string" },
+    },
+    homeworkTools: {
+      type: "array",
+      items: { type: "string" },
+    },
     catalogDescription: { anyOf: [{ type: "string" }, { type: "null" }] },
     studentSummary: { type: "string" },
     descriptionSource: {

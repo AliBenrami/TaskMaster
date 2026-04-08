@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { requireServerSession } from "@/lib/auth-session";
 import { ParseTestClient } from "./parse-test-client";
 import type { ParseTestViewModel } from "@/lib/parse-test/contracts";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
@@ -179,7 +181,7 @@ function EmptyPreviewState() {
       </h2>
       <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600 dark:text-zinc-400">
         ParseTest will turn the uploaded syllabus into a class page with course context, contacts,
-        upcoming work, and grading structure, all read back from the singleton SQL record.
+        upcoming work, and grading structure, all read back from your saved SQL record.
       </p>
     </section>
   );
@@ -212,6 +214,11 @@ function PreviewPane({
               {preview.course.courseCode ? (
                 <span className="rounded-full bg-zinc-950 px-3 py-1 text-white dark:bg-zinc-100 dark:text-zinc-950">
                   {preview.course.courseCode}
+                </span>
+              ) : null}
+              {preview.course.courseSection ? (
+                <span className="rounded-full border border-zinc-300 px-3 py-1 dark:border-zinc-700">
+                  Section {preview.course.courseSection}
                 </span>
               ) : null}
               {preview.course.term ? (
@@ -375,6 +382,59 @@ function PreviewPane({
           </section>
 
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                Course materials
+              </h3>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {preview.course.requiredMaterials.length} item
+                {preview.course.requiredMaterials.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {preview.course.requiredMaterials.length > 0 ? (
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+                {preview.course.requiredMaterials.map((material) => (
+                  <li key={material} className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                    {material}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                No required textbooks or materials were clearly extracted.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+                Homework tools
+              </h3>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {preview.course.homeworkTools.length} platform
+                {preview.course.homeworkTools.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            {preview.course.homeworkTools.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {preview.course.homeworkTools.map((tool) => (
+                  <span
+                    key={tool}
+                    className="rounded-full border border-zinc-300 px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                No homework or course tools were clearly extracted.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
               Key concepts
             </h3>
@@ -469,13 +529,15 @@ export default async function ParseTestPage(props: {
     notFound();
   }
 
+  const session = await requireServerSession("/parse-test");
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const uploadStatusParam = Array.isArray(searchParams?.upload)
     ? searchParams.upload[0]
     : searchParams?.upload;
-  const preview = await getParseTestViewModel();
+  const preview = await getParseTestViewModel(session.user.id);
   const metrics = preview ? getPreviewMetrics(preview) : null;
   const gradeDistributionStyle = preview ? getGradeDistributionStyle(preview.gradingItems) : null;
+  const displayName = session.user.name || session.user.email;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
@@ -483,16 +545,22 @@ export default async function ParseTestPage(props: {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">
-              TaskMaster Prototype
+              TaskMaster
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">ParseTest</h1>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Signed in as {displayName}
+            </p>
           </div>
-          <Link
-            href="/"
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-950 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
-          >
-            Back home
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-600 transition hover:border-zinc-400 hover:text-zinc-950 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-100"
+            >
+              Back home
+            </Link>
+            <SignOutButton />
+          </div>
         </div>
 
         <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -521,7 +589,7 @@ export default async function ParseTestPage(props: {
                 Technical details
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                Current singleton status
+                Current parse status
               </h2>
             </div>
             <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
@@ -538,6 +606,10 @@ export default async function ParseTestPage(props: {
                     <dd className="font-medium text-zinc-900 dark:text-zinc-100">
                       {uploadStatusLabel(uploadStatusParam)}
                     </dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-zinc-500 dark:text-zinc-400">Owner</dt>
+                    <dd className="font-medium text-zinc-900 dark:text-zinc-100">{displayName}</dd>
                   </div>
                   <div className="flex items-start justify-between gap-4">
                     <dt className="text-zinc-500 dark:text-zinc-400">Parse status</dt>
@@ -596,15 +668,15 @@ export default async function ParseTestPage(props: {
                   </ul>
                 ) : (
                   <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                    No important parser warnings for the current singleton preview.
+                    No important parser warnings for your current saved preview.
                   </p>
                 )}
               </div>
             </div>
           ) : (
             <div className="mt-6 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm leading-6 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-              No saved ParseTest preview yet. Upload a syllabus above to create the singleton
-              SQL-backed class page and populate technical details for this module.
+              No saved ParseTest preview yet. Upload a syllabus above to create the SQL-backed
+              class page for your account and populate technical details for this module.
             </div>
           )}
         </section>

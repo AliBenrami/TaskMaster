@@ -70,7 +70,7 @@ export function ParseTestClient({
     }
 
     setIsUploading(true);
-    setMessage("Parsing the syllabus and saving the singleton preview to SQL.");
+    setMessage("Parsing the syllabus and saving your preview to SQL.");
 
     try {
       const response = await fetch("/api/parse-test", {
@@ -89,7 +89,7 @@ export function ParseTestClient({
       const uploadStatus = payload?.isDuplicate ? "duplicate" : "parsed";
       setMessage(
         payload?.isDuplicate
-          ? "This syllabus matches the current singleton record. Reloading the saved SQL preview."
+          ? "This syllabus matches your current saved record. Reloading the SQL preview."
           : "Syllabus parsed and saved to SQL. Reloading the preview from the database now.",
       );
 
@@ -152,11 +152,11 @@ export function ParseTestClient({
             ParseTest
           </p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-            Upload one syllabus and replace the singleton preview
+            Upload one syllabus and refresh your saved preview
           </h2>
           <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-400">
             Upload a syllabus PDF, run Gemini, save the extracted data to SQL, and refresh the
-            class page preview from the stored singleton record.
+            class page preview from your saved record.
           </p>
         </div>
 
@@ -170,8 +170,8 @@ export function ParseTestClient({
                 Choose a syllabus from your device
               </div>
               <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                ParseTest accepts one PDF up to 20 MB and keeps only one saved syllabus graph in
-                SQL.
+                ParseTest accepts one PDF up to 20 MB and keeps one current saved syllabus graph
+                per account.
               </p>
               <div className="inline-flex rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-950">
                 Browse files
@@ -200,8 +200,8 @@ export function ParseTestClient({
             </div>
             <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
               {hasPreview
-                ? "Uploading a different syllabus replaces the current SQL-backed preview. Uploading the same PDF reuses it."
-                : "The first successful upload will create the singleton ParseTest preview in SQL."}
+                ? "Uploading a different syllabus replaces your current SQL-backed preview. Uploading the same PDF reuses it."
+                : "The first successful upload will create your ParseTest preview in SQL."}
             </p>
           </div>
 
@@ -215,7 +215,7 @@ export function ParseTestClient({
               <div className="text-zinc-700 dark:text-zinc-300">{message}</div>
             ) : (
               <div className="text-zinc-500 dark:text-zinc-400">
-                Idle. Select a syllabus PDF to generate or refresh the singleton preview.
+                Idle. Select a syllabus PDF to generate or refresh your saved preview.
               </div>
             )}
           </div>
@@ -240,7 +240,7 @@ export function ParseTestClient({
               Saved event feed
             </h3>
             <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              Every explicit calendar-dated item saved from the current singleton parse.
+              Every explicit calendar-dated item saved from your current ParseTest parse.
             </p>
           </div>
 

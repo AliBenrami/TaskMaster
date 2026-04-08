@@ -22,7 +22,7 @@ import {
 import {
   type ParseTestEventPayload,
   type ParseStatus,
-  PARSE_TEST_SCOPE,
+  type NormalizedParseTestSchedule,
   parseTestPayloadSchema,
   parseTestResponseJsonSchema,
   type ParseTestPayload,
@@ -83,6 +83,13 @@ function dedupeByKey<T>(items: T[], getKey: (item: T) => string) {
     seen.add(key);
     return true;
   });
+}
+
+function normaliseStringList(values: string[]) {
+  return dedupeByKey(
+    values.map((value) => value.trim()).filter((value) => value.length > 0),
+    (value) => value.toLowerCase(),
+  );
 }
 
 function normaliseRole(role: string) {
@@ -223,9 +230,13 @@ Rules:
 - studentSummary must be a practical 2-3 sentence rewrite for a student dashboard.
 - descriptionSource must be one of: catalog_description, course_objectives, learning_outcomes, inferred_from_topics.
 - keyConcepts should contain 4-15 concise topic labels.
+- keyConcepts should reflect the major topics to be covered in the course.
 - contacts should include the primary instructor and all teaching assistants when the syllabus provides them.
 - Use role values like Professor and TA when applicable.
 - contacts may omit email, officeHours, or location only when the syllabus does not provide them.
+- courseSection should capture the section identifier when present.
+- requiredMaterials should include textbooks, readers, software, websites, or source material the syllabus requires or strongly expects.
+- homeworkTools should include homework or class platforms like Canvas, Gradescope, Blackboard, WebAssign, Piazza, or specific coding tools when they are explicitly named.
 - gradingBreakdown should include the major categories and weights only when the syllabus explicitly gives them.
 - assignments should include all discernible deadlines, exams, quizzes, projects, papers, labs, discussions, and final deliverables.
 - events should include every explicit calendar-dated syllabus item, including exams, assignments, presentations, holidays, cancellations, or special meetings.
@@ -297,11 +308,14 @@ function normalisePayload(payload: ParseTestPayload): ParseTestPayload {
   return {
     ...payload,
     courseCode: normaliseNullableText(payload.courseCode),
+    courseSection: normaliseNullableText(payload.courseSection),
     term: normaliseNullableText(payload.term),
     instructorName: normaliseNullableText(payload.instructorName),
     meetingDays: normaliseNullableText(payload.meetingDays),
     meetingTime: normaliseNullableText(payload.meetingTime),
     meetingLocation: normaliseNullableText(payload.meetingLocation),
+    requiredMaterials: normaliseStringList(payload.requiredMaterials),
+    homeworkTools: normaliseStringList(payload.homeworkTools),
     catalogDescription: normaliseNullableText(payload.catalogDescription),
     keyConcepts: payload.keyConcepts
       .map((concept) => concept.trim())
@@ -430,11 +444,11 @@ async function parseSyllabusWithGemini(fileName: string, fileBuffer: Buffer) {
   }
 }
 
-async function getCurrentRun() {
+async function getCurrentRun(userId: string) {
   const runs = await db
     .select()
     .from(parseTestRun)
-    .where(eq(parseTestRun.scope, PARSE_TEST_SCOPE))
+    .where(eq(parseTestRun.userId, userId))
     .limit(1);
 
   return runs[0] ?? null;
@@ -442,16 +456,17 @@ async function getCurrentRun() {
 
 async function replaceCurrentRunWithProcessing(params: {
   runId: string;
+  userId: string;
   contentHash: string;
   fileName: string;
   mimeType: string;
   fileSizeBytes: number;
   parseModel: string;
 }) {
-  await db.delete(parseTestRun).where(eq(parseTestRun.scope, PARSE_TEST_SCOPE));
+  await db.delete(parseTestRun).where(eq(parseTestRun.userId, params.userId));
   await db.insert(parseTestRun).values({
     id: params.runId,
-    scope: PARSE_TEST_SCOPE,
+    userId: params.userId,
     contentHash: params.contentHash,
     originalFileName: params.fileName,
     mimeType: params.mimeType,
@@ -475,11 +490,14 @@ async function persistCompletedParse(params: {
     runId,
     title: payload.courseTitle,
     courseCode: payload.courseCode,
+    courseSection: payload.courseSection,
     term: payload.term,
     instructorName: payload.instructorName,
     meetingDays: payload.meetingDays,
     meetingTime: payload.meetingTime,
     meetingLocation: payload.meetingLocation,
+    requiredMaterials: payload.requiredMaterials,
+    homeworkTools: payload.homeworkTools,
     catalogDescription: payload.catalogDescription,
     studentSummary: payload.studentSummary,
     descriptionSource: payload.descriptionSource,
@@ -570,11 +588,11 @@ async function persistCompletedParse(params: {
     .where(eq(parseTestRun.id, runId));
 }
 
-async function replaceCurrentRunWithFailure(runId: string, message: string) {
+async function replaceCurrentRunWithFailure(runId: string, userId: string, message: string) {
   await db.delete(parseTestRun).where(eq(parseTestRun.id, runId));
   await db.insert(parseTestRun).values({
     id: runId,
-    scope: PARSE_TEST_SCOPE,
+    userId,
     contentHash: "",
     originalFileName: "failed-parse",
     mimeType: "application/pdf",
@@ -585,8 +603,8 @@ async function replaceCurrentRunWithFailure(runId: string, message: string) {
   });
 }
 
-export async function getParseTestViewModel(): Promise<ParseTestViewModel | null> {
-  const run = await getCurrentRun();
+export async function getParseTestViewModel(userId: string): Promise<ParseTestViewModel | null> {
+  const run = await getCurrentRun(userId);
   if (!run) {
     return null;
   }
@@ -674,11 +692,14 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
       id: course.id,
       title: course.title,
       courseCode: course.courseCode,
+      courseSection: course.courseSection,
       term: course.term,
       instructorName: course.instructorName,
       meetingDays: course.meetingDays,
       meetingTime: course.meetingTime,
       meetingLocation: course.meetingLocation,
+      requiredMaterials: course.requiredMaterials,
+      homeworkTools: course.homeworkTools,
       catalogDescription: course.catalogDescription,
       studentSummary: course.studentSummary,
       descriptionSource: course.descriptionSource,
@@ -730,23 +751,57 @@ export async function getParseTestViewModel(): Promise<ParseTestViewModel | null
   };
 }
 
+export async function getNormalizedParseTestSchedule(
+  userId: string,
+): Promise<NormalizedParseTestSchedule | null> {
+  const preview = await getParseTestViewModel(userId);
+
+  if (!preview) {
+    return null;
+  }
+
+  return {
+    course: {
+      id: preview.course.id,
+      title: preview.course.title,
+      courseCode: preview.course.courseCode,
+      courseSection: preview.course.courseSection,
+      term: preview.course.term,
+      instructorName: preview.course.instructorName,
+      meetingDays: preview.course.meetingDays,
+      meetingTime: preview.course.meetingTime,
+      meetingLocation: preview.course.meetingLocation,
+      requiredMaterials: preview.course.requiredMaterials,
+      homeworkTools: preview.course.homeworkTools,
+      summary: preview.course.studentSummary,
+    },
+    contacts: preview.contacts,
+    gradingItems: preview.gradingItems,
+    topics: preview.concepts,
+    assignments: preview.assignments,
+    events: preview.events,
+    parseIssues: preview.run.warnings,
+  };
+}
+
 export async function replaceParseTestWithUpload(params: {
+  userId: string;
   fileBuffer: Buffer;
   fileName: string;
   mimeType: string;
   fileSizeBytes: number;
 }) {
-  const { fileBuffer, fileName, mimeType, fileSizeBytes } = params;
+  const { userId, fileBuffer, fileName, mimeType, fileSizeBytes } = params;
   const contentHash = createHash("sha256").update(fileBuffer).digest("hex");
   const parseModel = getParseTestModel();
-  const currentRun = await getCurrentRun();
+  const currentRun = await getCurrentRun(userId);
 
   if (currentRun?.parseStatus === "processing") {
     throw new ParseTestError("ParseTest is already processing a syllabus. Wait for it to finish and try again.", 409);
   }
 
   if (currentRun?.contentHash === contentHash && currentRun.parseStatus === "completed") {
-    const viewModel = await getParseTestViewModel();
+    const viewModel = await getParseTestViewModel(userId);
 
     if (viewModel) {
       return { isDuplicate: true, viewModel };
@@ -757,6 +812,7 @@ export async function replaceParseTestWithUpload(params: {
 
   await replaceCurrentRunWithProcessing({
     runId,
+    userId,
     contentHash,
     fileName,
     mimeType,
@@ -772,7 +828,7 @@ export async function replaceParseTestWithUpload(params: {
       payload,
     });
 
-    const viewModel = await getParseTestViewModel();
+    const viewModel = await getParseTestViewModel(userId);
     if (!viewModel) {
       throw new ParseTestError("ParseTest saved the syllabus but could not reload the preview from SQL.", 500);
     }
@@ -781,7 +837,7 @@ export async function replaceParseTestWithUpload(params: {
   } catch (error) {
     const publicError = toPublicError(error);
 
-    await replaceCurrentRunWithFailure(runId, publicError.message);
+    await replaceCurrentRunWithFailure(runId, userId, publicError.message);
 
     throw publicError;
   }

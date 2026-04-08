@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -85,7 +86,9 @@ export const parseTestRun = pgTable(
   "parse_test_runs",
   {
     id: text("id").primaryKey(),
-    scope: text("scope").notNull().default("global").unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     contentHash: text("content_hash").notNull(),
     originalFileName: text("original_file_name").notNull(),
     mimeType: text("mime_type").notNull(),
@@ -108,6 +111,7 @@ export const parseTestRun = pgTable(
       .notNull(),
   },
   (table) => [
+    uniqueIndex("parse_test_runs_user_id_idx").on(table.userId),
     index("parse_test_runs_content_hash_idx").on(table.contentHash),
     index("parse_test_runs_status_idx").on(table.parseStatus),
   ],
@@ -123,11 +127,20 @@ export const parseTestCourse = pgTable(
       .unique(),
     title: text("title").notNull(),
     courseCode: text("course_code"),
+    courseSection: text("course_section"),
     term: text("term"),
     instructorName: text("instructor_name"),
     meetingDays: text("meeting_days"),
     meetingTime: text("meeting_time"),
     meetingLocation: text("meeting_location"),
+    requiredMaterials: text("required_materials")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    homeworkTools: text("homework_tools")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     catalogDescription: text("catalog_description"),
     studentSummary: text("student_summary").notNull(),
     descriptionSource: text("description_source", {
@@ -265,6 +278,7 @@ export const parseTestConcept = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  parseTestRuns: many(parseTestRun),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -282,6 +296,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 }));
 
 export const parseTestRunRelations = relations(parseTestRun, ({ one }) => ({
+  user: one(user, {
+    fields: [parseTestRun.userId],
+    references: [user.id],
+  }),
   course: one(parseTestCourse, {
     fields: [parseTestRun.id],
     references: [parseTestCourse.runId],

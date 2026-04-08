@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { MAX_PARSE_TEST_FILE_BYTES } from "@/lib/parse-test/contracts";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
 import { getParseTestErrorResponse, replaceParseTestWithUpload } from "@/lib/parse-test/service";
@@ -15,6 +16,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
+
+    if (!session) {
+      return jsonError("Sign in before uploading a syllabus.", 401);
+    }
+
     const formData = await request.formData();
     const fileEntry = formData.get("file");
 
@@ -36,6 +45,7 @@ export async function POST(request: Request) {
 
     const fileBuffer = Buffer.from(await fileEntry.arrayBuffer());
     const result = await replaceParseTestWithUpload({
+      userId: session.user.id,
       fileBuffer,
       fileName: fileEntry.name,
       mimeType: fileEntry.type,
@@ -52,4 +62,3 @@ export async function POST(request: Request) {
     return jsonError(message, status);
   }
 }
-
