@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 @import "tailwindcss";
 
 :root {
@@ -100,13 +102,20 @@ body {
 }
 
 .note-editor .ce-paragraph[data-placeholder]:empty::before,
-.note-editor .codex-editor__redactor [contenteditable="true"][data-placeholder]:empty::before,
+.note-editor
+  .codex-editor__redactor
+  [contenteditable="true"][data-placeholder]:empty::before,
 .note-editor .cdx-input[data-placeholder]::before {
   color: var(--note-muted-foreground);
 }
 
-.note-editor .ce-block:first-child .ce-paragraph[data-placeholder]:empty::before,
-.note-editor .ce-block:first-child .codex-editor__redactor [contenteditable="true"][data-placeholder]:empty::before {
+.note-editor
+  .ce-block:first-child
+  .ce-paragraph[data-placeholder]:empty::before,
+.note-editor
+  .ce-block:first-child
+  .codex-editor__redactor
+  [contenteditable="true"][data-placeholder]:empty::before {
   font-size: clamp(2.25rem, 4vw, 3rem);
   font-weight: 700;
   line-height: 1.1;
@@ -285,17 +294,21 @@ body {
   background: var(--note-border);
 }
 
+.note-editor .ce-block--selected,
 .note-editor .ce-block--selected .ce-block__content {
   background: color-mix(in srgb, var(--note-selection) 55%, transparent);
-  box-shadow: 0 0 0 1px var(--note-selection-strong);
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 0 1px var(--note-selection-strong);
 }
 
 .note-editor .ce-block__content:hover {
   background: color-mix(in srgb, var(--note-toolbar-hover) 65%, transparent);
 }
 
+.note-editor .ce-block--selected:hover,
 .note-editor .ce-block--selected .ce-block__content:hover {
   background: color-mix(in srgb, var(--note-selection) 75%, transparent);
+  border-radius: 0 !important;
 }
 
 .note-editor ::selection {
@@ -307,7 +320,10 @@ body {
   --note-code-block-padding-y: 1.2rem;
   --note-code-block-padding-x: 1.25rem;
   --note-code-block-line-height: 1.7;
-  --note-code-block-min-height: calc((var(--note-code-block-padding-y) * 2) + 1em * var(--note-code-block-line-height));
+  --note-code-block-min-height: calc(
+    (var(--note-code-block-padding-y) * 2) + 1em *
+      var(--note-code-block-line-height)
+  );
 }
 
 .note-code-block__textarea {

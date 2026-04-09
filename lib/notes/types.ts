@@ -80,6 +80,11 @@ export type NoteDocument = Omit<OutputData, "blocks"> & {
   blocks: NoteBlock[];
 };
 
+export type NoteContent = {
+  markdown: string;
+  document: NoteDocument;
+};
+
 const listMetaSchema = z
   .object({
     checked: z.boolean().optional(),
@@ -212,7 +217,7 @@ export const NoteDocumentSchema: z.ZodType<NoteDocument> = z
 export type NoteRecordResponse = {
   note: {
     id: string;
-    content: NoteDocument;
+    content: NoteContent;
     createdAt: string;
     updatedAt: string;
   };

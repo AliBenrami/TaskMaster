@@ -1,0 +1,127 @@
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
+import type { NoteBlock, NoteContent, NoteDocument, NoteListBlockData, NoteListItem } from "@/lib/notes/types";
+
+const turndown = new TurndownService({
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  headingStyle: "atx",
+  linkStyle: "inlined",
+  strongDelimiter: "**",
+});
+
+turndown.use(gfm);
+
+function htmlToMarkdown(value: string) {
+  return turndown
+    .turndown(value)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function htmlToPlainText(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|blockquote|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function createCodeFence(code: string) {
+  const matches = code.match(/`+/g) ?? [];
+  const longestFence = matches.reduce((longest, match) => Math.max(longest, match.length), 0);
+
+  return "`".repeat(Math.max(3, longestFence + 1));
+}
+
+function prefixLines(value: string, prefix: string) {
+  return value
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
+}
+
+function serializeListItems(
+  items: NoteListItem[],
+  style: NoteListBlockData["style"],
+  depth = 0,
+  start = 1,
+): string[] {
+  return items.flatMap((item, index) => {
+    const indent = "    ".repeat(depth);
+    const itemContent = htmlToMarkdown(item.content) || " ";
+    const marker =
+      style === "checklist"
+        ? `- [${item.meta?.checked ? "x" : " "}]`
+        : style === "ordered"
+          ? `${start + index}.`
+          : "-";
+    const lines = [`${indent}${marker} ${itemContent}`];
+
+    if (item.items.length > 0) {
+      lines.push(...serializeListItems(item.items, style, depth + 1));
+    }
+
+    return lines;
+  });
+}
+
+function serializeBlock(block: NoteBlock) {
+  switch (block.type) {
+    case "paragraph":
+      return htmlToMarkdown(block.data.text);
+    case "header": {
+      const level = Math.min(Math.max(block.data.level, 1), 4);
+      const content = htmlToMarkdown(block.data.text);
+      return content ? `${"#".repeat(level)} ${content}` : "";
+    }
+    case "list": {
+      const start = typeof block.data.meta?.start === "number" ? block.data.meta.start : 1;
+      return serializeListItems(block.data.items, block.data.style, 0, start).join("\n");
+    }
+    case "quote": {
+      const quoteText = htmlToMarkdown(block.data.text);
+      const caption = htmlToMarkdown(block.data.caption);
+      return [quoteText, caption]
+        .filter(Boolean)
+        .map((section) => prefixLines(section, "> "))
+        .join("\n>\n");
+    }
+    case "code": {
+      const fence = createCodeFence(block.data.code);
+      return `${fence}\n${block.data.code}\n${fence}`;
+    }
+    case "image": {
+      const altText = htmlToPlainText(block.data.caption) || "Image";
+      const caption = htmlToMarkdown(block.data.caption);
+      const imageLine = `![${altText}](${block.data.file.url})`;
+      return caption ? `${imageLine}\n\n${caption}` : imageLine;
+    }
+    case "math":
+      return `$$\n${block.data.latex}\n$$`;
+    default:
+      return "";
+  }
+}
+
+export function serializeNoteDocumentToMarkdown(document: NoteDocument) {
+  return document.blocks
+    .map((block) => serializeBlock(block))
+    .filter((block) => block.length > 0)
+    .join("\n\n");
+}
+
+export function createNoteContent(document: NoteDocument): NoteContent {
+  return {
+    markdown: serializeNoteDocumentToMarkdown(document),
+    document,
+  };
+}

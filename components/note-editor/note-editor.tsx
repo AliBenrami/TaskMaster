@@ -3,15 +3,16 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import type EditorJS from "@editorjs/editorjs";
 import type { BlockToolConstructable } from "@editorjs/editorjs";
-import type { NoteDocument, NoteImageFileData } from "@/lib/notes/types";
+import type { NoteContent, NoteDocument, NoteImageFileData } from "@/lib/notes/types";
 import { emptyNoteDocument, NoteDocumentSchema } from "@/lib/notes/types";
+import { createNoteContent } from "@/lib/notes/markdown";
 import { CodeBlockTool } from "@/components/note-editor/code-block-tool";
 import { MathBlockTool } from "@/components/note-editor/math-block-tool";
 
 export type NoteEditorProps = {
   initialDocument: NoteDocument;
-  onDocumentChange?: (document: NoteDocument) => void;
-  onSave?: (document: NoteDocument) => Promise<void>;
+  onContentChange?: (content: NoteContent) => void;
+  onSave?: (content: NoteContent) => Promise<void>;
   uploadImage?: (file: File) => Promise<NoteImageFileData>;
   readOnly?: boolean;
 };
@@ -58,17 +59,16 @@ async function uploadImageToDataUrl(file: File): Promise<NoteImageFileData> {
 
 export function NoteEditor({
   initialDocument,
-  onDocumentChange,
+  onContentChange,
   onSave,
   uploadImage,
   readOnly = false,
 }: NoteEditorProps) {
   const holderRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<EditorJS | null>(null);
-  const latestDocumentRef = useRef<NoteDocument>(initialDocument);
   const changeTimeoutRef = useRef<number | null>(null);
 
-  const emitDocumentChange = useEffectEvent(async () => {
+  const emitContentChange = useEffectEvent(async () => {
     if (!editorRef.current) {
       return;
     }
@@ -76,11 +76,11 @@ export function NoteEditor({
     try {
       const saved = await editorRef.current.save();
       const document = NoteDocumentSchema.parse(saved);
-      latestDocumentRef.current = document;
-      onDocumentChange?.(document);
+      const content = createNoteContent(document);
+      onContentChange?.(content);
 
       if (onSave) {
-        await onSave(document);
+        await onSave(content);
       }
     } catch (error) {
       console.error("Failed to persist note changes.", error);
@@ -202,7 +202,7 @@ export function NoteEditor({
           }
 
           changeTimeoutRef.current = window.setTimeout(() => {
-            void emitDocumentChange();
+            void emitContentChange();
           }, 180);
         },
       });
