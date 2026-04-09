@@ -13,9 +13,10 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.58",
-    "ai": "^6.0.146",
     "@better-auth/drizzle-adapter": "^1.5.6",
+    "@google/genai": "^1.48.0",
     "@neondatabase/serverless": "^1.0.2",
+    "ai": "^6.0.146",
     "better-auth": "^1.5.6",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.2",

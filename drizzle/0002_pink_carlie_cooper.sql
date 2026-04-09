@@ -1,0 +1,1 @@
+ALTER TABLE "parse_test_assignments" DROP COLUMN "confidence";

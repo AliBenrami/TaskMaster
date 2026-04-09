@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { db, schema } from "@/lib/db";
 
 const authSecret =
@@ -33,6 +34,7 @@ export const auth = betterAuth({
   experimental: {
     joins: true,
   },
+  plugins: [nextCookies()],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
