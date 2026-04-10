@@ -22,6 +22,7 @@
     "@editorjs/list": "^2.0.9",
     "@editorjs/paragraph": "^2.11.7",
     "@editorjs/quote": "^2.7.6",
+    "@google/genai": "^1.48.0",
     "@neondatabase/serverless": "^1.0.2",
     "ai": "^6.0.146",
     "better-auth": "^1.5.6",
