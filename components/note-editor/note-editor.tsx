@@ -67,6 +67,7 @@ export function NoteEditor({
   const holderRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<EditorJS | null>(null);
   const changeTimeoutRef = useRef<number | null>(null);
+  const initialDocumentRef = useRef<NoteDocument>(initialDocument);
 
   const emitContentChange = useEffectEvent(async () => {
     if (!editorRef.current) {
@@ -139,8 +140,8 @@ export function NoteEditor({
         readOnly,
         minHeight: 0,
         data:
-          initialDocument.blocks.length > 0
-            ? initialDocument
+          initialDocumentRef.current.blocks.length > 0
+            ? initialDocumentRef.current
             : { ...emptyNoteDocument },
         tools: {
           paragraph: {
@@ -225,6 +226,11 @@ export function NoteEditor({
 
       if (changeTimeoutRef.current) {
         window.clearTimeout(changeTimeoutRef.current);
+        changeTimeoutRef.current = null;
+
+        if (!readOnly) {
+          void emitContentChange();
+        }
       }
 
       const editor = editorRef.current;
@@ -234,7 +240,7 @@ export function NoteEditor({
         void editor.isReady.then(() => editor.destroy()).catch(() => undefined);
       }
     };
-  }, [initialDocument, readOnly]);
+  }, [readOnly]);
 
   return (
     <section className="note-editor relative min-h-[78vh]">

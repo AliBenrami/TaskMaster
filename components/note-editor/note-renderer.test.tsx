@@ -30,7 +30,7 @@ describe("NoteRenderer", () => {
 
     expect(screen.getByText("Sprint Notes")).toBeInTheDocument();
     expect(container.querySelector('input[type="checkbox"]')).toBeChecked();
-    expect(container.querySelector("ol")).toHaveClass("list-decimal");
+    expect(container.querySelector("ol")).not.toBeNull();
     expect(screen.getByText("Work hard")).toBeInTheDocument();
     expect(container.querySelector('img[alt="Roadmap"]')).toHaveAttribute(
       "src",

@@ -91,6 +91,72 @@ body {
   color: var(--foreground);
 }
 
+.note-renderer h1,
+.note-renderer h2,
+.note-renderer h3,
+.note-renderer h4 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.note-renderer h1 {
+  font-size: clamp(2rem, 3vw, 2.15rem);
+  line-height: 1.1;
+}
+
+.note-renderer h2 {
+  font-size: clamp(1.65rem, 2.4vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.note-renderer h3 {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.note-renderer h4 {
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.note-renderer p,
+.note-renderer li {
+  font-size: 1.05rem;
+  line-height: 1.85;
+}
+
+.note-renderer ul,
+.note-renderer ol {
+  margin: 0 0 0 1.15rem;
+  padding: 0;
+}
+
+.note-renderer ul {
+  list-style: disc;
+}
+
+.note-renderer ol {
+  list-style: decimal;
+}
+
+.note-renderer li + li {
+  margin-top: 0.25rem;
+}
+
+.note-renderer li::marker {
+  color: var(--note-muted-foreground);
+}
+
+.note-renderer blockquote {
+  margin: 0;
+  border-left: 4px solid var(--note-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--note-surface-muted) 88%, transparent);
+  padding: 0.85rem 1rem;
+}
+
 .note-editor .ce-paragraph,
 .note-editor .cdx-block {
   color: inherit;
@@ -99,6 +165,34 @@ body {
 .note-editor .ce-paragraph {
   font-size: 1.05rem;
   line-height: 1.85;
+}
+
+.note-editor .ce-header {
+  margin: 0 !important;
+  padding: 0.18em 0 0 !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.note-editor .ce-block h1.ce-header {
+  font-size: clamp(2rem, 3vw, 2.15rem) !important;
+  line-height: 1.1 !important;
+}
+
+.note-editor .ce-block h2.ce-header {
+  font-size: clamp(1.65rem, 2.4vw, 1.8rem) !important;
+  line-height: 1.15 !important;
+}
+
+.note-editor .ce-block h3.ce-header {
+  font-size: 1.35rem !important;
+  line-height: 1.2 !important;
+}
+
+.note-editor .ce-block h4.ce-header {
+  font-size: 1.15rem !important;
+  line-height: 1.25 !important;
 }
 
 .note-editor .ce-paragraph[data-placeholder]:empty::before,
@@ -315,6 +409,39 @@ body {
   background: var(--note-selection-strong);
 }
 
+.note-surface {
+  width: 100%;
+}
+
+.note-surface[role="button"] {
+  cursor: text;
+  border-radius: 0.75rem;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.note-surface[role="button"]:hover,
+.note-surface[role="button"]:focus-visible {
+  background: color-mix(in srgb, var(--note-toolbar-hover) 28%, transparent);
+  outline: none;
+}
+
+.note-surface__content {
+  margin: 0 auto;
+  min-height: 72vh;
+  width: 100%;
+  max-width: 56rem;
+  padding: 2rem 0.5rem 6rem;
+}
+
+@media (min-width: 768px) {
+  .note-surface__content {
+    padding: 3rem 2rem 8rem;
+  }
+}
+
 .note-code-block {
   display: block;
   --note-code-block-padding-y: 1.2rem;
@@ -396,6 +523,14 @@ body {
   word-break: normal;
 }
 
+.note-code-block--read .note-code-block__surface {
+  min-height: 0;
+  pointer-events: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 .note-code-block__code {
   display: block;
   min-height: calc(1em * var(--note-code-block-line-height));
@@ -408,6 +543,21 @@ body {
 .note-code-block .hljs-comment,
 .note-code-block .hljs-quote {
   color: var(--code-comment);
+}
+
+.note-renderer .task-list-item {
+  list-style: none;
+}
+
+.note-renderer .task-list-item input[type="checkbox"] {
+  margin: 0.52rem 0 0;
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+  flex: none;
+}
+
+.note-renderer .task-list-item p {
+  flex: 1 1 auto;
 }
 
 .note-code-block .hljs-keyword,
@@ -476,6 +626,19 @@ body {
 .note-renderer math-field::part(container) {
   background: var(--note-surface);
   color: var(--foreground);
+}
+
+.note-renderer .katex-display {
+  margin: 0.25rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--note-border);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--note-surface-muted) 88%, transparent);
+  padding: 1rem 1.25rem;
+}
+
+.note-renderer blockquote p + p {
+  margin-top: 0.35rem;
 }
 
 .note-editor pre:not(.note-code-block__surface),

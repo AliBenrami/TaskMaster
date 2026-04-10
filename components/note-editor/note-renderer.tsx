@@ -1,16 +1,12 @@
 "use client";
 
 import { Children, isValidElement } from "react";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { CodeBlockView } from "@/components/note-editor/code-block-view";
-
-function mergeClasses(...values: Array<string | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
 
 function omitNode<T extends { node?: unknown }>(props: T): Omit<T, "node"> {
   const { node, ...rest } = props;
@@ -36,21 +32,6 @@ function extractCode(children: ReactNode) {
   return "";
 }
 
-function Paragraph({
-  className,
-  ...props
-}: Omit<ComponentPropsWithoutRef<"p">, "children"> & {
-  children?: ReactNode;
-  node?: unknown;
-}) {
-  return (
-    <p
-      className={mergeClasses("leading-7 text-zinc-800 dark:text-zinc-200", className)}
-      {...omitNode(props)}
-    />
-  );
-}
-
 export function NoteRenderer({ markdown }: { markdown: string }) {
   if (markdown.trim().length === 0) {
     return (
@@ -61,93 +42,11 @@ export function NoteRenderer({ markdown }: { markdown: string }) {
   }
 
   return (
-    <article className="note-renderer space-y-5">
+    <article className="note-renderer space-y-3">
       <ReactMarkdown
         rehypePlugins={[rehypeKatex]}
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
-          h1: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <h1
-                className={mergeClasses(
-                  "text-4xl font-semibold leading-tight tracking-tight text-zinc-950 dark:text-zinc-50",
-                  className,
-                )}
-                {...rest}
-              />
-            );
-          },
-          h2: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <h2
-                className={mergeClasses(
-                  "text-3xl font-semibold leading-tight tracking-tight text-zinc-950 dark:text-zinc-50",
-                  className,
-                )}
-                {...rest}
-              />
-            );
-          },
-          h3: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <h3
-                className={mergeClasses(
-                  "text-2xl font-semibold leading-tight tracking-tight text-zinc-950 dark:text-zinc-50",
-                  className,
-                )}
-                {...rest}
-              />
-            );
-          },
-          h4: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <h4
-                className={mergeClasses(
-                  "text-xl font-semibold leading-tight tracking-tight text-zinc-950 dark:text-zinc-50",
-                  className,
-                )}
-                {...rest}
-              />
-            );
-          },
-          p: Paragraph,
-          ul: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return <ul className={mergeClasses("ml-5 list-disc space-y-2", className)} {...rest} />;
-          },
-          ol: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <ol
-                className={mergeClasses("ml-5 list-outside list-decimal space-y-2", className)}
-                {...rest}
-              />
-            );
-          },
-          li: (props) => {
-            const { children, className, ...rest } = omitNode(props);
-            return (
-              <li className={mergeClasses("space-y-2 marker:text-zinc-500", className)} {...rest}>
-                {children}
-              </li>
-            );
-          },
-          blockquote: (props) => {
-            const { className, ...rest } = omitNode(props);
-            return (
-              <blockquote
-                className={mergeClasses(
-                  "rounded-lg border-l-4 border-zinc-300 bg-zinc-50 px-4 py-3 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200",
-                  className,
-                )}
-                {...rest}
-              />
-            );
-          },
           img: (props) => {
             const { alt, src } = omitNode(props);
             if (!src) {

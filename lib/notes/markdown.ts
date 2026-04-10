@@ -14,8 +14,16 @@ const turndown = new TurndownService({
 turndown.use(gfm);
 
 function htmlToMarkdown(value: string) {
+  const normalized = value.replace(/\n{3,}/g, "\n\n").trim();
+
+  // Treat non-HTML strings as already-authored markdown/plain text so block
+  // editors can store direct user input without Turndown escaping markdown.
+  if (!/<\/?[a-z][\s\S]*>/i.test(normalized) && !/&[a-z#0-9]+;/i.test(normalized)) {
+    return normalized;
+  }
+
   return turndown
-    .turndown(value)
+    .turndown(normalized)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

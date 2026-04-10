@@ -8,8 +8,8 @@ export default async function EditorHarnessPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Editor Harness</h1>
           <p className="text-sm text-zinc-500">
-            Minimal integration surface for the reusable Editor.js note editor component, with
-            local save/reload verification only.
+            Rendered note by default. Click the note to open the full Editor.js editor, then click
+            away to return to rendered Markdown.
           </p>
         </div>
 
