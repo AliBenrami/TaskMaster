@@ -1,4 +1,5 @@
 import type { BlockTool, BlockToolConstructorOptions, ToolboxConfig } from "@editorjs/editorjs";
+import type { API, BlockAPI } from "@editorjs/editorjs";
 import type { MathfieldElement } from "mathlive";
 import type { NoteMathBlockData } from "@/lib/notes/types";
 
@@ -21,9 +22,27 @@ export class MathBlockTool implements BlockTool {
   }
 
   private readonly readOnly: boolean;
+  private readonly api: API;
+  private readonly block: BlockAPI;
   private data: NoteMathBlockData;
   private mathField: MathfieldElement | null = null;
   private wrapper: HTMLDivElement | null = null;
+  private readonly stopEditorEventPropagation = (event: Event) => {
+    event.stopPropagation();
+  };
+  private readonly handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.handleInput();
+
+      const currentBlockIndex = this.api.blocks.getBlockIndex(this.block.id);
+      this.api.blocks.insert("paragraph", {}, undefined, currentBlockIndex + 1, true);
+      return;
+    }
+
+    this.stopEditorEventPropagation(event);
+  };
   private readonly handleInput = () => {
     if (!this.mathField) {
       return;
@@ -34,7 +53,9 @@ export class MathBlockTool implements BlockTool {
     };
   };
 
-  constructor({ data, readOnly }: BlockToolConstructorOptions<NoteMathBlockData>) {
+  constructor({ api, block, data, readOnly }: BlockToolConstructorOptions<NoteMathBlockData>) {
+    this.api = api;
+    this.block = block;
     this.readOnly = readOnly;
     this.data = {
       latex: data.latex ?? "",
@@ -45,6 +66,7 @@ export class MathBlockTool implements BlockTool {
     const wrapper = document.createElement("div");
     wrapper.className =
       "rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950";
+    wrapper.contentEditable = "false";
 
     const label = document.createElement("div");
     label.className = "mb-2 text-xs font-medium uppercase tracking-[0.2em] text-zinc-500";
@@ -63,8 +85,13 @@ export class MathBlockTool implements BlockTool {
       mathField.setAttribute("read-only", "");
       mathField.tabIndex = -1;
     } else {
+      mathField.addEventListener("beforeinput", this.stopEditorEventPropagation);
       mathField.addEventListener("input", this.handleInput);
       mathField.addEventListener("change", this.handleInput);
+      mathField.addEventListener("keydown", this.handleKeyDown);
+      mathField.addEventListener("keyup", this.stopEditorEventPropagation);
+      mathField.addEventListener("pointerdown", this.stopEditorEventPropagation);
+      mathField.addEventListener("click", this.stopEditorEventPropagation);
     }
 
     wrapper.append(mathField);
@@ -87,8 +114,13 @@ export class MathBlockTool implements BlockTool {
 
   public destroy() {
     if (this.mathField) {
+      this.mathField.removeEventListener("beforeinput", this.stopEditorEventPropagation);
       this.mathField.removeEventListener("input", this.handleInput);
       this.mathField.removeEventListener("change", this.handleInput);
+      this.mathField.removeEventListener("keydown", this.handleKeyDown);
+      this.mathField.removeEventListener("keyup", this.stopEditorEventPropagation);
+      this.mathField.removeEventListener("pointerdown", this.stopEditorEventPropagation);
+      this.mathField.removeEventListener("click", this.stopEditorEventPropagation);
     }
 
     this.mathField = null;

@@ -19,6 +19,10 @@ export type NoteEditorProps = {
 
 const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
 
+function areDocumentsEqual(left: NoteDocument, right: NoteDocument) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 async function uploadImageToDataUrl(file: File): Promise<NoteImageFileData> {
   if (!file.type.startsWith("image/")) {
     throw new Error("Only image uploads are supported.");
@@ -67,7 +71,39 @@ export function NoteEditor({
   const holderRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<EditorJS | null>(null);
   const changeTimeoutRef = useRef<number | null>(null);
-  const initialDocumentRef = useRef<NoteDocument>(initialDocument);
+  const renderedDocumentRef = useRef<NoteDocument>(initialDocument);
+  const pendingSaveRef = useRef<NoteContent | null>(null);
+  const isFlushingSaveRef = useRef(false);
+
+  const flushPendingSaves = useEffectEvent(async () => {
+    if (!onSave || isFlushingSaveRef.current) {
+      return;
+    }
+
+    isFlushingSaveRef.current = true;
+
+    try {
+      while (pendingSaveRef.current) {
+        const nextContent = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        await onSave(nextContent);
+      }
+    } finally {
+      isFlushingSaveRef.current = false;
+    }
+  });
+
+  const publishContent = useEffectEvent(async (content: NoteContent) => {
+    renderedDocumentRef.current = content.document;
+    onContentChange?.(content);
+
+    if (!onSave) {
+      return;
+    }
+
+    pendingSaveRef.current = content;
+    await flushPendingSaves();
+  });
 
   const emitContentChange = useEffectEvent(async () => {
     if (!editorRef.current) {
@@ -78,11 +114,7 @@ export function NoteEditor({
       const saved = await editorRef.current.save();
       const document = NoteDocumentSchema.parse(saved);
       const content = createNoteContent(document);
-      onContentChange?.(content);
-
-      if (onSave) {
-        await onSave(content);
-      }
+      await publishContent(content);
     } catch (error) {
       console.error("Failed to persist note changes.", error);
     }
@@ -140,8 +172,8 @@ export function NoteEditor({
         readOnly,
         minHeight: 0,
         data:
-          initialDocumentRef.current.blocks.length > 0
-            ? initialDocumentRef.current
+          renderedDocumentRef.current.blocks.length > 0
+            ? renderedDocumentRef.current
             : { ...emptyNoteDocument },
         tools: {
           paragraph: {
@@ -241,6 +273,31 @@ export function NoteEditor({
       }
     };
   }, [readOnly]);
+
+  useEffect(() => {
+    if (areDocumentsEqual(initialDocument, renderedDocumentRef.current)) {
+      return;
+    }
+
+    renderedDocumentRef.current = initialDocument;
+    pendingSaveRef.current = null;
+
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    void editor.isReady
+      .then(() =>
+        editor.render(
+          initialDocument.blocks.length > 0 ? initialDocument : { ...emptyNoteDocument },
+        ),
+      )
+      .catch((error) => {
+        console.error("Failed to sync note document.", error);
+      });
+  }, [initialDocument]);
 
   return (
     <section className="note-editor relative min-h-[78vh]">

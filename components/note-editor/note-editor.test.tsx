@@ -5,6 +5,7 @@ import type { NoteDocument } from "@/lib/notes/types";
 let latestConfig: {
   onChange?: () => void | Promise<void>;
 } | null = null;
+let lastRenderedDocument: NoteDocument | null = null;
 let mockSavedDocument: NoteDocument = {
   time: 1,
   blocks: [],
@@ -19,6 +20,10 @@ class MockEditorJS {
 
   public async save() {
     return mockSavedDocument;
+  }
+
+  public async render(data: NoteDocument) {
+    lastRenderedDocument = data;
   }
 
   public destroy() {}
@@ -56,6 +61,7 @@ import { emptyNoteDocument } from "@/lib/notes/types";
 describe("NoteEditor", () => {
   beforeEach(() => {
     latestConfig = null;
+    lastRenderedDocument = null;
     mockSavedDocument = {
       time: 1,
       blocks: [],
@@ -97,5 +103,90 @@ describe("NoteEditor", () => {
     });
 
     vi.useRealTimers();
+  });
+
+  it("coalesces overlapping autosaves so only the latest content is persisted after an in-flight save", async () => {
+    let resolveFirstSave: (() => void) | null = null;
+    const onSave = vi
+      .fn<(content: { markdown: string; document: NoteDocument }) => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstSave = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+
+    render(<NoteEditor initialDocument={emptyNoteDocument} onSave={onSave} />);
+
+    await waitFor(() => expect(latestConfig).not.toBeNull());
+    vi.useFakeTimers();
+
+    mockSavedDocument = {
+      time: 2,
+      blocks: [
+        {
+          type: "paragraph",
+          data: {
+            text: "First version",
+          },
+        },
+      ],
+    };
+
+    void latestConfig?.onChange?.();
+    await vi.advanceTimersByTimeAsync(181);
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0]?.[0]?.markdown).toBe("First version");
+
+    mockSavedDocument = {
+      time: 3,
+      blocks: [
+        {
+          type: "paragraph",
+          data: {
+            text: "Second version",
+          },
+        },
+      ],
+    };
+
+    void latestConfig?.onChange?.();
+    await vi.advanceTimersByTimeAsync(181);
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirstSave?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave.mock.calls[1]?.[0]?.markdown).toBe("Second version");
+  });
+
+  it("renders a new document when the parent swaps notes", async () => {
+    const { rerender } = render(<NoteEditor initialDocument={emptyNoteDocument} />);
+
+    await waitFor(() => expect(latestConfig).not.toBeNull());
+
+    const replacementDocument: NoteDocument = {
+      time: 10,
+      blocks: [
+        {
+          id: "replacement",
+          type: "paragraph",
+          data: {
+            text: "Replacement note",
+          },
+        },
+      ],
+    };
+
+    rerender(<NoteEditor initialDocument={replacementDocument} />);
+
+    await waitFor(() => expect(lastRenderedDocument).toEqual(replacementDocument));
   });
 });

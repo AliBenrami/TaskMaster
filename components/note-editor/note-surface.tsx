@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { NoteEditor } from "@/components/note-editor/note-editor";
 import { NoteRenderer } from "@/components/note-editor/note-renderer";
 import { createNoteContent } from "@/lib/notes/markdown";
@@ -12,6 +13,7 @@ export type NoteSurfaceProps = {
   onSave?: (content: NoteContent) => Promise<void>;
   uploadImage?: (file: File) => Promise<NoteImageFileData>;
   readOnly?: boolean;
+  keepEditingWhenEmpty?: boolean;
 };
 
 function isEditorChromeTarget(target: EventTarget | null) {
@@ -21,9 +23,39 @@ function isEditorChromeTarget(target: EventTarget | null) {
 
   return Boolean(
     target.closest(
-      ".ce-toolbar, .ce-popover, .ce-inline-toolbar, .ce-conversion-toolbar, .ce-toolbox, .ce-settings",
+      [
+        ".ce-toolbar",
+        ".ce-popover",
+        ".ce-inline-toolbar",
+        ".ce-conversion-toolbar",
+        ".ce-toolbox",
+        ".ce-settings",
+        ".ML__keyboard",
+        ".MLK__backdrop",
+        ".MLK__plate",
+        ".MLK__layer",
+        ".ML__virtual-keyboard-toggle",
+        ".ML__menu-toggle",
+        ".ML__tooltip-container",
+      ].join(", "),
     ),
   );
+}
+
+function isInteractivePreviewTarget(target: EventTarget | null, container: HTMLElement) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  const interactiveTarget = target.closest(
+    "a, button, input, textarea, select, summary, [role='button'], [role='link'], [data-note-surface-ignore-click]",
+  );
+
+  return interactiveTarget !== null && interactiveTarget !== container;
+}
+
+function areDocumentsEqual(left: NoteDocument, right: NoteDocument) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function NoteSurface({
@@ -32,20 +64,38 @@ export function NoteSurface({
   onSave,
   uploadImage,
   readOnly = false,
+  keepEditingWhenEmpty = false,
 }: NoteSurfaceProps) {
-  const [content, setContent] = useState<NoteContent>(() => createNoteContent(initialDocument));
-  const [isEditing, setIsEditing] = useState(false);
+  const [draftState, setDraftState] = useState(() => ({
+    sourceDocument: initialDocument,
+    content: createNoteContent(initialDocument),
+  }));
+  const [isEditing, setIsEditing] = useState(
+    () =>
+      !readOnly &&
+      keepEditingWhenEmpty &&
+      createNoteContent(initialDocument).markdown.trim().length === 0,
+  );
   const editorRootRef = useRef<HTMLDivElement | null>(null);
-
+  const content = areDocumentsEqual(draftState.sourceDocument, initialDocument)
+    ? draftState.content
+    : createNoteContent(initialDocument);
   const renderedMarkdown = useMemo(() => content.markdown, [content.markdown]);
+  const shouldKeepEditorOpen =
+    !readOnly && keepEditingWhenEmpty && renderedMarkdown.trim().length === 0;
+  const isEditorOpen = isEditing || shouldKeepEditorOpen;
 
   useEffect(() => {
-    if (!isEditing) {
+    if (!isEditorOpen) {
       return;
     }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (isEditorChromeTarget(event.target)) {
+        return;
+      }
+
+      if (shouldKeepEditorOpen) {
         return;
       }
 
@@ -58,20 +108,40 @@ export function NoteSurface({
     return () => {
       window.document.removeEventListener("pointerdown", handlePointerDown, true);
     };
-  }, [isEditing]);
+  }, [isEditorOpen, shouldKeepEditorOpen]);
 
-  if (isEditing && !readOnly) {
+  const openEditor = () => {
+    if (!readOnly) {
+      setIsEditing(true);
+    }
+  };
+
+  const updateContent = (nextContent: NoteContent) => {
+    setDraftState({
+      sourceDocument: initialDocument,
+      content: nextContent,
+    });
+  };
+
+  const handlePreviewClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (readOnly || isInteractivePreviewTarget(event.target, event.currentTarget)) {
+      return;
+    }
+
+    openEditor();
+  };
+
+  if (isEditorOpen && !readOnly) {
     return (
       <div ref={editorRootRef} className="note-surface">
         <NoteEditor
           initialDocument={content.document}
           onContentChange={(nextContent) => {
-            setContent(nextContent);
+            updateContent(nextContent);
             onContentChange?.(nextContent);
           }}
           onSave={async (nextContent) => {
-            setContent(nextContent);
-            onContentChange?.(nextContent);
+            updateContent(nextContent);
             await onSave?.(nextContent);
           }}
           uploadImage={uploadImage}
@@ -82,25 +152,11 @@ export function NoteSurface({
 
   return (
     <div
-      aria-label={readOnly ? undefined : "Open note editor"}
+      aria-label={readOnly || shouldKeepEditorOpen ? undefined : "Open note editor"}
       className="note-surface"
-      onClick={() => {
-        if (!readOnly) {
-          setIsEditing(true);
-        }
-      }}
-      onKeyDown={(event) => {
-        if (readOnly) {
-          return;
-        }
-
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          setIsEditing(true);
-        }
-      }}
-      role={readOnly ? undefined : "button"}
-      tabIndex={readOnly ? undefined : 0}
+      onClick={handlePreviewClick}
+      role={readOnly || shouldKeepEditorOpen ? undefined : "button"}
+      tabIndex={readOnly || shouldKeepEditorOpen ? undefined : 0}
     >
       <div className="note-surface__content">
         <NoteRenderer markdown={renderedMarkdown} />

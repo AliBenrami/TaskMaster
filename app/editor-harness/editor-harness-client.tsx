@@ -8,5 +8,5 @@ type EditorHarnessClientProps = {
 };
 
 export function EditorHarnessClient({ initialDocument }: EditorHarnessClientProps) {
-  return <NoteSurface initialDocument={initialDocument} />;
+  return <NoteSurface initialDocument={initialDocument} keepEditingWhenEmpty />;
 }
