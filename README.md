@@ -13,6 +13,8 @@ This repository is actively evolving and not final.
 - Agentic base API endpoint at `POST /api/chat`
 - Better Auth route base at `/api/auth/*`
 - Drizzle migrations + PostgreSQL/Neon wiring
+- `parse-test` for Gemini-based syllabus parsing
+- `docling-test` for experimental Docling-based document parsing and artifact inspection
 
 ## Setup
 
@@ -48,9 +50,29 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 pnpm dev
 pnpm lint
 pnpm build
+pnpm test
 pnpm auth:generate
 pnpm db:generate
 pnpm db:migrate
+```
+
+## DoclingTest
+
+`docling-test` is an experimental parsing workspace separate from `parse-test`. It accepts `PDF` and `DOCX`, runs a local Python Docling wrapper, persists the normalized academic preview to SQL, and also saves the literal Docling markdown plus raw JSON artifact for inspection.
+
+Local prerequisite:
+
+```bash
+pip install docling
+```
+
+Relevant environment variables:
+
+```env
+ENABLE_DOCLING_TEST=true
+DOCLING_BACKEND=local-python
+DOCLING_PYTHON_BIN=python
+DOCLING_TIMEOUT_MS=120000
 ```
 
 ## API Example (`/api/chat`)
