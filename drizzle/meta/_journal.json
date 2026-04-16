@@ -50,6 +50,13 @@
       "when": 1776289380947,
       "tag": "0006_docling_test",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776297600000,
+      "tag": "0007_docling_modes",
+      "breakpoints": true
     }
   ]
 }

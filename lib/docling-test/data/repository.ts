@@ -385,7 +385,7 @@ export async function deleteDoclingTestRunRecord(params: { userId: string; runId
   }
 
   await db.delete(doclingTestRun).where(and(eq(doclingTestRun.id, params.runId), eq(doclingTestRun.userId, params.userId)));
-  const nextRunId = await getLatestCompletedRunId(params.userId);
+  const nextRunId = await getLatestCompletedRunId(params.userId, run.mode as DoclingDocumentMode);
 
-  return { nextRunId };
+  return { nextRunId, mode: run.mode as DoclingDocumentMode };
 }

@@ -58,7 +58,7 @@ pnpm db:migrate
 
 ## DoclingTest
 
-`docling-test` is an experimental parsing workspace separate from `parse-test`. It accepts `PDF` and `DOCX`, runs a local Python Docling wrapper, persists the normalized academic preview to SQL, and also saves the literal Docling markdown plus raw JSON artifact for inspection.
+`docling-test` is an experimental parsing workspace separate from `parse-test`. It now supports three modes: `syllabus`, `notes`, and `presentation`. Syllabus and notes mode accept `PDF` and `DOCX`, presentation mode is `PDF` only, and every run saves both the normalized academic preview and the raw Docling markdown plus JSON artifact for inspection.
 
 Local prerequisite:
 

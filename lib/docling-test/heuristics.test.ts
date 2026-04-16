@@ -29,7 +29,7 @@ Oct 10 Midterm Exam 7:00 pm
 Nov 20 Project presentation
 `;
 
-    const result = buildNormalizedCandidateFromMarkdown(markdown);
+    const result = buildNormalizedCandidateFromMarkdown(markdown, "syllabus");
 
     expect(result.courseTitle).toContain("Database Systems");
     expect(result.courseCode).toBe("CS 4348");
@@ -41,6 +41,26 @@ Nov 20 Project presentation
     expect(result.assignments.length).toBeGreaterThan(0);
     expect(result.events.length).toBeGreaterThan(0);
     expect(result.keyConcepts).toContain("Relational model");
+  });
+
+  it("extracts note-centric concepts in notes mode", () => {
+    const markdown = `
+# Operating Systems Notes
+
+## Threads
+Definition: A thread is the smallest unit of CPU execution.
+Formula: turnaround = completion - arrival
+
+## Scheduling
+Algorithm: Round robin
+`;
+
+    const result = buildNormalizedCandidateFromMarkdown(markdown, "notes");
+
+    expect(result.courseTitle).toContain("Operating Systems Notes");
+    expect(result.keyConcepts).toContain("Threads");
+    expect(result.keyConcepts).toContain("A thread is the smallest unit of CPU execution.");
+    expect(result.warnings).not.toContain("Docling did not identify any instructor or TA contact lines.");
   });
 });
 

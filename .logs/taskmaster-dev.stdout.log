@@ -6,77 +6,19 @@
 - Local:         http://localhost:3000
 - Network:       http://10.169.173.222:3000
 - Environments: .env
-✓ Ready in 1175ms
+✓ Ready in 7.3s
 Creating turbopack project {
   dir: 'C:\\Users\\hasna\\Documents\\NewBeginnings\\TaskMaster',
   testMode: true
 }
 
- GET / 200 in 1663ms (next.js: 609ms, application-code: 1055ms)
- GET / 200 in 7.9s (next.js: 63ms, application-code: 7.8s)
- GET /docling-test 200 in 2.2s (next.js: 398ms, application-code: 1778ms)
-○ Compiling /api/docling-test ...
- GET / 200 in 921ms (next.js: 130ms, application-code: 792ms)
- POST /api/docling-test 200 in 2.2min (next.js: 8.6s, application-code: 2.1min)
-  Reload env: .env
-  Reload env: .env
- GET /docling-test 200 in 3.1s (next.js: 953ms, application-code: 2.2s)
- GET /docling-test 200 in 2.3s (next.js: 762ms, application-code: 1490ms)
- GET / 200 in 1970ms (next.js: 238ms, application-code: 1732ms)
- GET /docling-test 200 in 1039ms (next.js: 16ms, application-code: 1023ms)
- GET /docling-test 200 in 16.2s (next.js: 11.3s, application-code: 4.9s)
- GET /docling-test 200 in 724ms (next.js: 76ms, application-code: 648ms)
-✓ Compiled in 12.7s
- GET /docling-test 200 in 8.5s (next.js: 4.4s, application-code: 4.2s)
- GET /docling-test 200 in 223ms (next.js: 17ms, application-code: 206ms)
- GET /docling-test 200 in 379ms (next.js: 22ms, application-code: 357ms)
- GET /docling-test 200 in 282ms (next.js: 19ms, application-code: 263ms)
- GET /docling-test 200 in 305ms (next.js: 15ms, application-code: 290ms)
- GET /docling-test 200 in 277ms (next.js: 21ms, application-code: 256ms)
- GET /docling-test 200 in 290ms (next.js: 13ms, application-code: 278ms)
- GET /docling-test 200 in 316ms (next.js: 12ms, application-code: 305ms)
- GET /docling-test 200 in 1842ms (next.js: 16ms, application-code: 1825ms)
- GET /docling-test 200 in 1745ms (next.js: 18ms, application-code: 1727ms)
- GET /docling-test 200 in 1254ms (next.js: 171ms, application-code: 1083ms)
- GET /docling-test 200 in 1261ms (next.js: 35ms, application-code: 1226ms)
- GET /docling-test 200 in 1251ms (next.js: 505ms, application-code: 746ms)
- GET /docling-test 200 in 1258ms (next.js: 314ms, application-code: 944ms)
-✓ Compiled in 510ms
- GET /docling-test 200 in 1942ms (next.js: 869ms, application-code: 1074ms)
- GET /docling-test 200 in 159ms (next.js: 9ms, application-code: 150ms)
- GET /docling-test 200 in 2.8s (next.js: 886ms, application-code: 1923ms)
- GET /docling-test 200 in 231ms (next.js: 19ms, application-code: 212ms)
- GET /docling-test 200 in 2.8s (next.js: 1058ms, application-code: 1700ms)
- GET /docling-test 200 in 451ms (next.js: 10ms, application-code: 441ms)
- GET /docling-test 200 in 1136ms (next.js: 24ms, application-code: 1112ms)
- GET /docling-test 200 in 1328ms (next.js: 119ms, application-code: 1209ms)
-✓ Compiled in 679ms
- GET /docling-test 500 in 4.3s (next.js: 1114ms, application-code: 3.2s)
- GET /docling-test 500 in 795ms (next.js: 46ms, application-code: 749ms)
-✓ Compiled in 341ms
- GET /docling-test 500 in 4.7s (next.js: 1440ms, application-code: 3.3s)
- GET /docling-test 500 in 4.8s (next.js: 2.7s, application-code: 2.2s)
-✓ Compiled in 299ms
- GET /docling-test 500 in 9.7s (next.js: 2.5s, application-code: 7.2s)
- GET /docling-test 500 in 10.6s (next.js: 1214ms, application-code: 9.4s)
-✓ Compiled in 173ms
- GET /docling-test 500 in 4.0s (next.js: 1631ms, application-code: 2.4s)
- GET /docling-test 500 in 4.5s (next.js: 946ms, application-code: 3.6s)
-✓ Compiled in 983ms
- GET /docling-test 500 in 6.3s (next.js: 3.2s, application-code: 3.1s)
- GET /docling-test 500 in 6.9s (next.js: 2.0s, application-code: 4.9s)
- GET /docling-test 500 in 4.4s (next.js: 1601ms, application-code: 2.8s)
- GET /docling-test 500 in 4.4s (next.js: 718ms, application-code: 3.7s)
-✓ Compiled in 777ms
-✓ Compiled in 185ms
- GET /docling-test 500 in 3.5s (next.js: 1092ms, application-code: 2.5s)
- GET /docling-test 500 in 7.7s (next.js: 1517ms, application-code: 6.1s)
-✓ Compiled in 370ms
- GET /docling-test 500 in 3.9s (next.js: 2.0s, application-code: 1859ms)
- GET /docling-test 500 in 4.4s (next.js: 989ms, application-code: 3.4s)
-✓ Compiled in 248ms
- GET /docling-test 500 in 4.0s (next.js: 1992ms, application-code: 2.0s)
- GET /docling-test 500 in 4.0s (next.js: 1057ms, application-code: 3.0s)
-✓ Compiled in 746ms
- GET /docling-test 500 in 3.9s (next.js: 1876ms, application-code: 1987ms)
- GET /docling-test 500 in 3.9s (next.js: 959ms, application-code: 2.9s)
+ GET / 200 in 13.7s (next.js: 1662ms, application-code: 12.0s)
+✓ Finished writing to filesystem cache in 11.1s
+ GET / 200 in 974ms (next.js: 123ms, application-code: 851ms)
+ GET /docling-test 200 in 55s (next.js: 52ms, application-code: 55s)
+ GET /docling-test 500 in 56s (next.js: 479ms, application-code: 55s)
+ GET / 200 in 1209ms (next.js: 33ms, application-code: 1175ms)
+ GET /docling-test?mode=notes 200 in 3.8s (next.js: 23ms, application-code: 3.8s)
+ GET /docling-test?mode=presentation 200 in 820ms (next.js: 37ms, application-code: 783ms)
+ GET / 200 in 549ms (next.js: 25ms, application-code: 524ms)
+ POST /api/docling-test 200 in 2.2min (next.js: 6.2s, application-code: 2.0min)
