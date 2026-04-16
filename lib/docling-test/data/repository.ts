@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema";
 import type {
   DoclingBackend,
+  DoclingDocumentMode,
   DoclingInputFormat,
   DoclingTestViewModel,
   ParseStatus,
@@ -31,18 +32,24 @@ async function getRunById(userId: string, runId: string) {
   return runs[0] ?? null;
 }
 
-async function getLatestCompletedRunId(userId: string) {
-  const runs = await getUserDoclingTestRuns(userId);
+async function getLatestCompletedRunId(userId: string, mode?: DoclingDocumentMode) {
+  const runs = await getUserDoclingTestRuns(userId, mode);
   const latestCompletedRun = runs.find((run) => run.parseStatus === "completed") ?? null;
   return latestCompletedRun?.id ?? null;
 }
 
-export async function getUserDoclingTestRuns(userId: string) {
-  return db
+export async function getUserDoclingTestRuns(userId: string, mode?: DoclingDocumentMode) {
+  const query = db
     .select()
     .from(doclingTestRun)
-    .where(eq(doclingTestRun.userId, userId))
+    .where(
+      mode
+        ? and(eq(doclingTestRun.userId, userId), eq(doclingTestRun.mode, mode))
+        : eq(doclingTestRun.userId, userId),
+    )
     .orderBy(desc(doclingTestRun.updatedAt));
+
+  return query;
 }
 
 export async function createDoclingProcessingRun(params: {
@@ -52,6 +59,7 @@ export async function createDoclingProcessingRun(params: {
   fileName: string;
   mimeType: string;
   fileSizeBytes: number;
+  mode: DoclingDocumentMode;
   inputFormat: DoclingInputFormat;
   provider: string;
   providerVersion: string | null;
@@ -64,6 +72,7 @@ export async function createDoclingProcessingRun(params: {
     originalFileName: params.fileName,
     mimeType: params.mimeType,
     fileSizeBytes: params.fileSizeBytes,
+    mode: params.mode,
     inputFormat: params.inputFormat,
     parseStatus: "processing",
     provider: params.provider,
@@ -199,7 +208,12 @@ export async function persistCompletedDoclingParse(params: {
     .where(eq(doclingTestRun.id, runId));
 }
 
-export async function replaceCurrentDoclingRunWithFailure(runId: string, userId: string, message: string) {
+export async function replaceCurrentDoclingRunWithFailure(
+  runId: string,
+  userId: string,
+  mode: DoclingDocumentMode,
+  message: string,
+) {
   await db.delete(doclingTestRun).where(eq(doclingTestRun.id, runId));
   await db.insert(doclingTestRun).values({
     id: runId,
@@ -208,6 +222,7 @@ export async function replaceCurrentDoclingRunWithFailure(runId: string, userId:
     originalFileName: "failed-docling-parse",
     mimeType: "application/octet-stream",
     fileSizeBytes: 0,
+    mode,
     inputFormat: "pdf",
     parseStatus: "failed",
     provider: "docling",
@@ -217,8 +232,11 @@ export async function replaceCurrentDoclingRunWithFailure(runId: string, userId:
   });
 }
 
-export async function getDoclingTestViewModel(userId: string): Promise<DoclingTestViewModel | null> {
-  const latestRunId = await getLatestCompletedRunId(userId);
+export async function getDoclingTestViewModel(
+  userId: string,
+  mode?: DoclingDocumentMode,
+): Promise<DoclingTestViewModel | null> {
+  const latestRunId = await getLatestCompletedRunId(userId, mode);
   if (!latestRunId) {
     return null;
   }
@@ -282,6 +300,7 @@ export async function getDoclingTestViewModelForRun(
       id: run.id,
       contentHash: run.contentHash,
       parseStatus: run.parseStatus as ParseStatus,
+      mode: run.mode as DoclingDocumentMode,
       provider: run.provider,
       providerVersion: run.providerVersion,
       backend: run.backend as DoclingBackend,

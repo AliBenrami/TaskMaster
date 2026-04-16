@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { MAX_DOCLING_TEST_FILE_BYTES } from "@/lib/docling-test/contracts";
 import { isDoclingTestEnabled } from "@/lib/docling-test/feature";
+import { parseDoclingDocumentMode } from "@/lib/docling-test/mode";
 import { deleteDoclingTestRun, getDoclingTestErrorResponse } from "@/lib/docling-test/service";
 import { createDoclingTestUploadStream, jsonError } from "./streaming";
 
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const fileEntry = formData.get("file");
+    const mode = parseDoclingDocumentMode(
+      typeof formData.get("mode") === "string" ? String(formData.get("mode")) : undefined,
+    );
 
     if (!(fileEntry instanceof File)) {
       return jsonError("Upload a document in the `file` field.", 400);
@@ -43,6 +47,7 @@ export async function POST(request: Request) {
       fileName: fileEntry.name,
       mimeType: fileEntry.type,
       fileSizeBytes: fileEntry.size,
+      mode,
     });
 
     return new Response(stream, {

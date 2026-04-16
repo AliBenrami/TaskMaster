@@ -286,6 +286,7 @@ export const doclingTestRun = pgTable(
     originalFileName: text("original_file_name").notNull(),
     mimeType: text("mime_type").notNull(),
     fileSizeBytes: integer("file_size_bytes").notNull(),
+    mode: text("mode").notNull().default("syllabus"),
     inputFormat: text("input_format").notNull(),
     parseStatus: text("parse_status", {
       enum: ["processing", "completed", "failed"],

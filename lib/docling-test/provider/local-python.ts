@@ -68,6 +68,7 @@ export class LocalDoclingPythonProvider implements DocumentParseProvider {
     const stats = summarizeDoclingArtifact(payload.data.rawJson);
     const normalizedCandidate = buildNormalizedCandidateFromMarkdown(
       payload.data.markdown,
+      input.mode,
       payload.data.warnings,
     );
 

@@ -1,5 +1,9 @@
-import { parseTestPayloadSchema, type ParseTestPayload } from "@/lib/parse-test/contracts";
+import {
+  parseTestPayloadSchema,
+  type ParseTestPayload,
+} from "@/lib/parse-test/contracts";
 import { isHighSignalWarning, parseIsoDate } from "@/lib/parse-test/normalize";
+import type { DoclingDocumentMode } from "./contracts";
 import { DoclingTestError } from "./errors";
 
 const KNOWN_HOMEWORK_TOOLS = [
@@ -216,6 +220,25 @@ function inferConcepts(lines: string[]) {
   return dedupeStrings([...headingConcepts, ...fromSection]).slice(0, 20);
 }
 
+function inferNoteConcepts(lines: string[]) {
+  const headingConcepts = lines
+    .filter((line) => line.startsWith("#"))
+    .map((line) => line.replace(/^#+\s*/, "").trim())
+    .filter((line) => line.length > 3);
+
+  const labeledConcepts = lines
+    .filter((line) => /\b(definition|formula|theorem|lemma|algorithm|example|proof)\b\s*[:\-]/i.test(line))
+    .map((line) =>
+      line
+        .replace(/^(?:[-*]\s*)?/i, "")
+        .replace(/\b(definition|formula|theorem|lemma|algorithm|example|proof)\b\s*[:\-]\s*/i, "")
+        .trim(),
+    )
+    .filter((line) => line.length > 3);
+
+  return dedupeStrings([...headingConcepts, ...labeledConcepts]).slice(0, 24);
+}
+
 function inferGrading(lines: string[]) {
   const rows: ParseTestPayload["gradingBreakdown"] = [];
 
@@ -373,6 +396,7 @@ function inferAssignmentsAndEvents(lines: string[], term: string | null) {
 }
 
 function inferSummary(
+  mode: DoclingDocumentMode,
   title: string,
   description: string | null,
   concepts: string[],
@@ -380,15 +404,25 @@ function inferSummary(
 ) {
   const firstSentence = description
     ? truncate(description, 220)
-    : `${title} appears to be an academic course document parsed through Docling.`;
+    : mode === "notes"
+      ? `${title} appears to be a set of academic notes parsed through Docling.`
+      : mode === "presentation"
+        ? `${title} appears to be an academic presentation parsed through Docling.`
+        : `${title} appears to be an academic course document parsed through Docling.`;
   const conceptText =
     concepts.length > 0
       ? `Key topics include ${concepts.slice(0, 4).join(", ")}.`
-      : "The document includes a course schedule and academic planning details.";
+      : mode === "notes"
+        ? "The document includes study content that may need manual topic cleanup."
+        : mode === "presentation"
+          ? "The document includes slide-level academic content and topic structure."
+          : "The document includes a course schedule and academic planning details.";
   const materialText =
     requiredMaterials.length > 0
       ? `Required materials and tools were extracted for downstream study planning.`
-      : "Some required materials may need manual review.";
+      : mode === "notes"
+        ? "Supporting materials may need manual review."
+        : "Some required materials may need manual review.";
 
   return truncate(`${firstSentence} ${conceptText} ${materialText}`, 1000);
 }
@@ -414,13 +448,14 @@ function ensurePayload(payload: ParseTestPayload) {
 
 export function buildNormalizedCandidateFromMarkdown(
   markdown: string,
+  mode: DoclingDocumentMode,
   baseWarnings: string[] = [],
 ): ParseTestPayload {
   const lines = toLines(markdown);
   const title = truncate(firstHeading(lines), 200);
   const term = inferTerm(lines);
   const description = inferDescription(lines);
-  const concepts = inferConcepts(lines);
+  const concepts = mode === "notes" ? inferNoteConcepts(lines) : inferConcepts(lines);
   const requiredMaterials = inferRequiredMaterials(lines);
   const homeworkTools = inferHomeworkTools(markdown);
   const contacts = inferContacts(lines);
@@ -428,21 +463,36 @@ export function buildNormalizedCandidateFromMarkdown(
   const { assignments, events } = inferAssignmentsAndEvents(lines, term);
 
   const warnings = [...baseWarnings];
-  if (contacts.length === 0) {
+  if (mode === "syllabus" && contacts.length === 0) {
     warnings.push("Docling did not identify any instructor or TA contact lines.");
   }
-  if (events.length === 0) {
+  if (mode === "syllabus" && events.length === 0) {
     warnings.push("Docling did not identify any explicit calendar-dated course events.");
   }
-  if (requiredMaterials.length === 0) {
+  if (mode !== "presentation" && requiredMaterials.length === 0) {
     warnings.push("Docling did not confidently identify required materials.");
   }
   if (concepts.length === 0) {
-    warnings.push("Docling did not confidently identify topic headings for key concepts.");
+    warnings.push(
+      mode === "notes"
+        ? "Docling did not confidently identify note headings, formulas, or definitions for key concepts."
+        : mode === "presentation"
+          ? "Docling did not confidently identify slide topics for key concepts."
+          : "Docling did not confidently identify topic headings for key concepts.",
+    );
+  }
+  if (mode !== "syllabus" && events.length === 0) {
+    warnings.push("Docling did not identify any explicit calendar-dated references in this document.");
   }
 
   const payload: ParseTestPayload = {
-    courseTitle: title || "Untitled academic document",
+    courseTitle:
+      title ||
+      (mode === "notes"
+        ? "Untitled academic notes"
+        : mode === "presentation"
+          ? "Untitled academic presentation"
+          : "Untitled syllabus"),
     courseCode: inferCourseCode(title),
     courseSection: inferLabeledValue(lines, ["section", "course section"]),
     term,
@@ -453,7 +503,7 @@ export function buildNormalizedCandidateFromMarkdown(
     requiredMaterials,
     homeworkTools,
     catalogDescription: description.catalogDescription,
-    studentSummary: inferSummary(title, description.catalogDescription, concepts, requiredMaterials),
+    studentSummary: inferSummary(mode, title, description.catalogDescription, concepts, requiredMaterials),
     descriptionSource: description.descriptionSource,
     keyConcepts: concepts,
     contacts,

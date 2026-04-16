@@ -2,11 +2,12 @@
 
 import { useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { DoclingTestViewModel } from "@/lib/docling-test/contracts";
+import type { DoclingDocumentMode, DoclingTestViewModel } from "@/lib/docling-test/contracts";
 import { EventFeed } from "./components/event-feed";
 import { UploadPanel } from "./components/upload-panel";
 
 type DoclingTestClientProps = {
+  activeMode: DoclingDocumentMode;
   hasPreview: boolean;
   courseTitle: string | null;
   events: DoclingTestViewModel["events"];
@@ -54,6 +55,7 @@ function slugifyFilePart(value: string | null) {
 }
 
 export function DoclingTestClient({
+  activeMode,
   hasPreview,
   courseTitle,
   events,
@@ -85,6 +87,7 @@ export function DoclingTestClient({
     setMessage("Parsing the document with Docling and saving the preview plus raw artifacts to SQL.");
     setActivityLogs([
       `Selected file: ${file.name}`,
+      `Selected mode: ${activeMode}.`,
       "Submitting the upload to the docling-test API.",
       "Waiting for validation, duplicate detection, Docling conversion, and SQL persistence.",
     ]);
@@ -178,8 +181,8 @@ export function DoclingTestClient({
 
       startTransition(() => {
         const nextUrl = finalResult.runId
-          ? `/docling-test?run=${encodeURIComponent(finalResult.runId)}&upload=${uploadStatus}`
-          : `/docling-test?upload=${uploadStatus}`;
+          ? `/docling-test?mode=${encodeURIComponent(activeMode)}&run=${encodeURIComponent(finalResult.runId)}&upload=${uploadStatus}`
+          : `/docling-test?mode=${encodeURIComponent(activeMode)}&upload=${uploadStatus}`;
         router.replace(nextUrl);
         router.refresh();
       });
@@ -241,6 +244,7 @@ export function DoclingTestClient({
   return (
     <div className="space-y-6">
       <UploadPanel
+        activeMode={activeMode}
         hasPreview={hasPreview}
         totalSavedRuns={totalSavedRuns}
         selectedFileName={selectedFileName}

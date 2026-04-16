@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -32,6 +34,38 @@ def export_markdown(document) -> str:
     raise RuntimeError("Docling document did not expose export_to_markdown().")
 
 
+def patch_huggingface_symlink_fallback() -> None:
+    try:
+        from huggingface_hub import file_download as fd
+    except Exception:
+        return
+
+    original_create_symlink = fd._create_symlink
+
+    def patched_create_symlink(src: str, dst: str, new_blob: bool = False) -> None:
+        try:
+            return original_create_symlink(src, dst, new_blob=new_blob)
+        except OSError as exc:
+            winerror = getattr(exc, "winerror", None)
+            if winerror != 1314:
+                raise
+
+            abs_src = os.path.abspath(os.path.expanduser(src))
+            abs_dst = os.path.abspath(os.path.expanduser(dst))
+            os.makedirs(os.path.dirname(abs_dst), exist_ok=True)
+            try:
+                os.remove(abs_dst)
+            except OSError:
+                pass
+
+            if new_blob:
+                shutil.move(abs_src, abs_dst)
+            else:
+                shutil.copyfile(abs_src, abs_dst)
+
+    fd._create_symlink = patched_create_symlink
+
+
 def main() -> None:
     if len(sys.argv) < 3:
       fail("Usage: docling_wrapper.py <file_path> <input_format>")
@@ -48,6 +82,7 @@ def main() -> None:
         fail(str(exc))
 
     try:
+        patch_huggingface_symlink_fallback()
         converter = DocumentConverter()
         conversion_result = converter.convert(file_path)
         document = conversion_result.document

@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { parseTestRun, doclingTestCourse } from "@/lib/db/schema";
 import type {
+  DoclingDocumentMode,
   DoclingInputFormat,
   DoclingComparisonSummary,
   DoclingTestRunSummary,
@@ -11,8 +12,11 @@ import { compareCounts } from "../heuristics";
 import { getParseTestViewModelForRun } from "@/lib/parse-test/data/repository";
 import { getDoclingTestViewModel, getDoclingTestViewModelForRun, getUserDoclingTestRuns } from "./repository";
 
-export async function getDoclingTestRunSummaries(userId: string): Promise<DoclingTestRunSummary[]> {
-  const runs = await getUserDoclingTestRuns(userId);
+export async function getDoclingTestRunSummaries(
+  userId: string,
+  mode?: DoclingDocumentMode,
+): Promise<DoclingTestRunSummary[]> {
+  const runs = await getUserDoclingTestRuns(userId, mode);
 
   if (runs.length === 0) {
     return [];
@@ -40,6 +44,7 @@ export async function getDoclingTestRunSummaries(userId: string): Promise<Doclin
 
       return {
         runId: run.id,
+        mode: run.mode as DoclingDocumentMode,
         title: course.title,
         courseCode: course.courseCode,
         term: course.term,
@@ -52,8 +57,9 @@ export async function getDoclingTestRunSummaries(userId: string): Promise<Doclin
 
 export async function getNormalizedDoclingTestSchedule(
   userId: string,
+  mode?: DoclingDocumentMode,
 ): Promise<NormalizedDoclingTestSchedule | null> {
-  const preview = await getDoclingTestViewModel(userId);
+  const preview = await getDoclingTestViewModel(userId, mode);
 
   if (!preview) {
     return null;
@@ -86,6 +92,7 @@ export async function getNormalizedDoclingTestSchedule(
 export async function getDoclingComparisonSummary(params: {
   userId: string;
   contentHash: string;
+  mode: DoclingDocumentMode;
   inputFormat: "pdf" | "docx";
   doclingRunId: string;
 }) {
@@ -94,6 +101,15 @@ export async function getDoclingComparisonSummary(params: {
     return {
       availability: "unavailable",
       reason: "No saved docling-test preview is available for comparison.",
+      parseTestRunId: null,
+      counts: [],
+    } satisfies DoclingComparisonSummary;
+  }
+
+  if (params.mode !== "syllabus") {
+    return {
+      availability: "unavailable",
+      reason: "ParseTest comparison is only available for syllabus mode.",
       parseTestRunId: null,
       counts: [],
     } satisfies DoclingComparisonSummary;

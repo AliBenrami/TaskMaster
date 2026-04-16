@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { requireServerSession } from "@/lib/auth-session";
 import { isDoclingTestEnabled } from "@/lib/docling-test/feature";
+import { parseDoclingDocumentMode } from "@/lib/docling-test/mode";
 import {
   getDoclingComparisonSummary,
   getDoclingTestRunSummaries,
@@ -31,11 +32,15 @@ export default async function DoclingTestPage(props: {
     ? searchParams.upload[0]
     : searchParams?.upload;
   const runParam = Array.isArray(searchParams?.run) ? searchParams.run[0] : searchParams?.run;
-  const runSummaries = await getDoclingTestRunSummaries(session.user.id);
+  const requestedMode = parseDoclingDocumentMode(
+    Array.isArray(searchParams?.mode) ? searchParams.mode[0] : searchParams?.mode,
+  );
+  const runSummaries = await getDoclingTestRunSummaries(session.user.id, requestedMode);
   const selectedSummary =
     (runParam ? runSummaries.find((summary) => summary.runId === runParam) : null) ??
     runSummaries[0] ??
     null;
+  const activeMode = selectedSummary?.mode ?? requestedMode;
   const preview = selectedSummary
     ? await getDoclingTestViewModelForRun(session.user.id, selectedSummary.runId)
     : null;
@@ -43,6 +48,7 @@ export default async function DoclingTestPage(props: {
     ? await getDoclingComparisonSummary({
         userId: session.user.id,
         contentHash: preview.run.contentHash,
+        mode: preview.run.mode,
         inputFormat: preview.run.inputFormat,
         doclingRunId: preview.run.id,
       })
@@ -62,10 +68,11 @@ export default async function DoclingTestPage(props: {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50">
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:py-10">
-        <PageHeader displayName={displayName} />
+        <PageHeader displayName={displayName} mode={activeMode} />
 
         <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <DoclingTestClient
+            activeMode={activeMode}
             hasPreview={Boolean(preview)}
             courseTitle={preview?.course.title ?? null}
             events={preview?.events ?? []}
@@ -80,11 +87,12 @@ export default async function DoclingTestPage(props: {
               gradeDistributionStyle={gradeDistributionStyle}
               currentIndex={currentIndex}
               totalCount={runSummaries.length}
+              activeMode={activeMode}
               prevRunId={prevRunId}
               nextRunId={nextRunId}
             />
           ) : (
-            <EmptyPreviewState />
+            <EmptyPreviewState mode={activeMode} />
           )}
         </div>
 

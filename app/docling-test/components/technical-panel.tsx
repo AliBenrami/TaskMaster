@@ -56,6 +56,10 @@ export function TechnicalPanel({ preview, uploadStatusParam, displayName }: Tech
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{preview.run.parseStatus}</dd>
               </div>
               <div className="flex items-start justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">Mode</dt>
+                <dd className="font-medium capitalize text-zinc-900 dark:text-zinc-100">{preview.run.mode}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-4">
                 <dt className="text-zinc-500 dark:text-zinc-400">Provider</dt>
                 <dd className="font-medium text-zinc-900 dark:text-zinc-100">{preview.run.provider}</dd>
               </div>
@@ -131,8 +135,7 @@ export function TechnicalPanel({ preview, uploadStatusParam, displayName }: Tech
         </div>
       ) : (
         <div className="mt-6 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm leading-6 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-          No saved docling-test preview yet. Upload a PDF or DOCX above to create the SQL-backed class
-          preview and raw artifact record for your account.
+          No saved docling-test preview yet. Upload a document above to create the SQL-backed preview and raw artifact record for your account.
         </div>
       )}
     </section>

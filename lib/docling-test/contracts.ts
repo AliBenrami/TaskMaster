@@ -18,6 +18,9 @@ export type DoclingInputFormat = (typeof doclingInputFormatValues)[number];
 export const doclingBackendValues = ["local-python", "remote-api"] as const;
 export type DoclingBackend = (typeof doclingBackendValues)[number];
 
+export const doclingDocumentModeValues = ["syllabus", "notes", "presentation"] as const;
+export type DoclingDocumentMode = (typeof doclingDocumentModeValues)[number];
+
 export const doclingStatsSchema = z
   .object({
     pageCount: z.number().int().nonnegative().nullable().optional(),
@@ -62,6 +65,7 @@ export type DocumentParseProviderInput = {
   mimeType: string;
   fileSizeBytes: number;
   inputFormat: DoclingInputFormat;
+  mode: DoclingDocumentMode;
   onLog?: (message: string) => void;
 };
 
@@ -74,6 +78,7 @@ export type DoclingTestViewModel = {
     id: string;
     contentHash: string;
     parseStatus: ParseStatus;
+    mode: DoclingDocumentMode;
     provider: string;
     providerVersion: string | null;
     backend: DoclingBackend;
@@ -151,6 +156,7 @@ export type DoclingTestViewModel = {
 
 export type DoclingTestRunSummary = {
   runId: string;
+  mode: DoclingDocumentMode;
   title: string;
   courseCode: string | null;
   term: string | null;

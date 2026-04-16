@@ -2,8 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import type { DoclingDocumentMode } from "@/lib/docling-test/contracts";
 
 type DoclingTestRunSwitcherProps = {
+  mode: DoclingDocumentMode;
   currentRunId: string;
   currentIndex: number;
   totalCount: number;
@@ -12,6 +14,7 @@ type DoclingTestRunSwitcherProps = {
 };
 
 export function DoclingTestRunSwitcher({
+  mode,
   currentRunId,
   currentIndex,
   totalCount,
@@ -28,7 +31,7 @@ export function DoclingTestRunSwitcher({
     }
 
     startTransition(() => {
-      router.replace(`/docling-test?run=${encodeURIComponent(runId)}`);
+      router.replace(`/docling-test?mode=${encodeURIComponent(mode)}&run=${encodeURIComponent(runId)}`);
       router.refresh();
     });
   }
@@ -50,8 +53,8 @@ export function DoclingTestRunSwitcher({
 
       startTransition(() => {
         const nextUrl = payload?.nextRunId
-          ? `/docling-test?run=${encodeURIComponent(payload.nextRunId)}&upload=deleted`
-          : "/docling-test?upload=deleted";
+          ? `/docling-test?mode=${encodeURIComponent(mode)}&run=${encodeURIComponent(payload.nextRunId)}&upload=deleted`
+          : `/docling-test?mode=${encodeURIComponent(mode)}&upload=deleted`;
         router.replace(nextUrl);
         router.refresh();
       });

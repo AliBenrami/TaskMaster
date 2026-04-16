@@ -10,9 +10,10 @@ import {
   persistCompletedDoclingParse,
   replaceCurrentDoclingRunWithFailure,
 } from "../data/repository";
+import type { DoclingDocumentMode } from "../contracts";
 import { type DoclingActivityLogger, DoclingTestError, toPublicDoclingTestError } from "../errors";
 import { getDoclingBackend } from "../feature";
-import { inferDoclingInputFormat } from "../validation";
+import { inferDoclingInputFormat, validateDoclingUploadMode } from "../validation";
 
 export async function replaceDoclingTestWithUpload(params: {
   userId: string;
@@ -20,9 +21,10 @@ export async function replaceDoclingTestWithUpload(params: {
   fileName: string;
   mimeType: string;
   fileSizeBytes: number;
+  mode: DoclingDocumentMode;
   onLog?: DoclingActivityLogger;
 }) {
-  const { userId, fileBuffer, fileName, mimeType, fileSizeBytes, onLog } = params;
+  const { userId, fileBuffer, fileName, mimeType, fileSizeBytes, mode, onLog } = params;
   const logs: string[] = [];
   const log: DoclingActivityLogger = (message) => {
     logs.push(message);
@@ -30,6 +32,7 @@ export async function replaceDoclingTestWithUpload(params: {
   };
 
   const inputFormat = inferDoclingInputFormat(fileName, mimeType);
+  validateDoclingUploadMode(mode, inputFormat);
   log(`Received upload "${fileName}" (${Math.round(fileSizeBytes / 1024)} KB).`);
 
   const contentHash = createHash("sha256").update(fileBuffer).digest("hex");
@@ -39,7 +42,7 @@ export async function replaceDoclingTestWithUpload(params: {
   try {
     log("Computed the SHA-256 hash for duplicate detection.");
     log("Checking your existing saved docling-test runs for an identical completed parse.");
-    const userRuns = await getUserDoclingTestRuns(userId);
+    const userRuns = await getUserDoclingTestRuns(userId, mode);
     const processingRun = userRuns.find((run) => run.parseStatus === "processing") ?? null;
     const duplicateRun =
       userRuns.find((run) => run.contentHash === contentHash && run.parseStatus === "completed") ?? null;
@@ -71,6 +74,7 @@ export async function replaceDoclingTestWithUpload(params: {
       fileName,
       mimeType,
       fileSizeBytes,
+      mode,
       inputFormat,
       provider: "docling",
       providerVersion: null,
@@ -87,6 +91,7 @@ export async function replaceDoclingTestWithUpload(params: {
       mimeType,
       fileSizeBytes,
       inputFormat,
+      mode,
       onLog: log,
     });
 
@@ -118,7 +123,7 @@ export async function replaceDoclingTestWithUpload(params: {
 
     log(`Docling parse failed: ${publicError.message}`);
     if (runId) {
-      await replaceCurrentDoclingRunWithFailure(runId, userId, publicError.message);
+      await replaceCurrentDoclingRunWithFailure(runId, userId, mode, publicError.message);
     }
 
     throw new DoclingTestError(publicError.message, publicError.status, {

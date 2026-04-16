@@ -1,4 +1,4 @@
-import type { DoclingTestViewModel } from "@/lib/docling-test/contracts";
+import type { DoclingDocumentMode, DoclingTestViewModel } from "@/lib/docling-test/contracts";
 import {
   descriptionSourceLabel,
   formatDueAt,
@@ -9,6 +9,7 @@ import { ContactCard } from "@/app/parse-test/components/preview/contact-card";
 import { DoclingTestRunSwitcher } from "../run-switcher";
 
 type PreviewPaneProps = {
+  activeMode: DoclingDocumentMode;
   preview: DoclingTestViewModel;
   metrics: {
     datedAssignmentsCount: number;
@@ -24,6 +25,7 @@ type PreviewPaneProps = {
 };
 
 export function PreviewPane({
+  activeMode,
   preview,
   metrics,
   gradeDistributionStyle,
@@ -32,6 +34,8 @@ export function PreviewPane({
   prevRunId,
   nextRunId,
 }: PreviewPaneProps) {
+  const isNotesMode = activeMode === "notes";
+  const isPresentationMode = activeMode === "presentation";
   const instructorContacts = preview.contacts.filter((contact) => contact.role !== "TA");
   const teachingAssistants = preview.contacts.filter((contact) => contact.role === "TA");
   const location = preview.course.meetingLocation?.toLowerCase() ?? "";
@@ -59,7 +63,11 @@ export function PreviewPane({
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-              Generated class preview
+              {isNotesMode
+                ? "Generated notes preview"
+                : isPresentationMode
+                  ? "Generated presentation preview"
+                  : "Generated class preview"}
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
               {preview.course.title}
@@ -90,6 +98,7 @@ export function PreviewPane({
 
           <div className="flex flex-col items-start gap-4 lg:items-end">
             <DoclingTestRunSwitcher
+              mode={activeMode}
               currentRunId={preview.run.id}
               currentIndex={currentIndex}
               totalCount={totalCount}
@@ -113,7 +122,11 @@ export function PreviewPane({
               {metrics.upcomingAssignmentsCount}
             </div>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Dated milestones still ahead in the current Docling run.
+              {isNotesMode
+                ? "Dated study references still ahead in the current Docling run."
+                : isPresentationMode
+                  ? "Dated presentation milestones still ahead in the current Docling run."
+                  : "Dated milestones still ahead in the current Docling run."}
             </p>
           </div>
 
@@ -127,7 +140,11 @@ export function PreviewPane({
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
               {metrics.nextAssignment
                 ? formatDueAt(metrics.nextAssignment.dueAt) ?? metrics.nextAssignment.dateText
-                : "The parser did not find a specific upcoming calendar date."}
+                : isNotesMode
+                  ? "The parser did not find a specific upcoming dated note reference."
+                  : isPresentationMode
+                    ? "The parser did not find a specific upcoming presentation date."
+                    : "The parser did not find a specific upcoming calendar date."}
             </p>
           </div>
 
@@ -150,7 +167,11 @@ export function PreviewPane({
           <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                What this class is about
+                {isNotesMode
+                  ? "What these notes cover"
+                  : isPresentationMode
+                    ? "What this presentation covers"
+                    : "What this class is about"}
               </h3>
               <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs uppercase tracking-[0.16em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                 {descriptionSourceLabel(preview.course.descriptionSource)}
@@ -175,7 +196,11 @@ export function PreviewPane({
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                Assignment timeline
+                {isNotesMode
+                  ? "Dated note references"
+                  : isPresentationMode
+                    ? "Presentation timeline"
+                    : "Assignment timeline"}
               </h3>
               <span className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                 {metrics.datedAssignmentsCount} dated item{metrics.datedAssignmentsCount === 1 ? "" : "s"}
@@ -189,7 +214,11 @@ export function PreviewPane({
                 ))
               ) : (
                 <p className="rounded-2xl border border-dashed border-zinc-300 px-4 py-6 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                  No assignments were clearly extracted from the current Docling run.
+                  {isNotesMode
+                    ? "No dated note references were clearly extracted from the current Docling run."
+                    : isPresentationMode
+                      ? "No dated presentation milestones were clearly extracted from the current Docling run."
+                      : "No assignments were clearly extracted from the current Docling run."}
                 </p>
               )}
             </div>
@@ -200,7 +229,7 @@ export function PreviewPane({
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                Contacts
+                {isNotesMode || isPresentationMode ? "People mentioned" : "Contacts"}
               </h3>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
                 {preview.contacts.length} saved
@@ -233,7 +262,9 @@ export function PreviewPane({
               </div>
             ) : (
               <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                No professor or TA contact details were clearly extracted from the current Docling run.
+                {isNotesMode || isPresentationMode
+                  ? "No people or presenter contact details were clearly extracted from the current Docling run."
+                  : "No professor or TA contact details were clearly extracted from the current Docling run."}
               </p>
             )}
           </section>
@@ -241,7 +272,7 @@ export function PreviewPane({
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                Course materials
+                {isNotesMode || isPresentationMode ? "Referenced materials" : "Course materials"}
               </h3>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
                 {preview.course.requiredMaterials.length} item
@@ -261,7 +292,9 @@ export function PreviewPane({
               </ul>
             ) : (
               <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                No required textbooks or materials were clearly extracted.
+                {isNotesMode || isPresentationMode
+                  ? "No referenced materials were clearly extracted."
+                  : "No required textbooks or materials were clearly extracted."}
               </p>
             )}
           </section>
@@ -269,7 +302,7 @@ export function PreviewPane({
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                Homework tools
+                {isNotesMode ? "Study tools" : "Homework tools"}
               </h3>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
                 {preview.course.homeworkTools.length} platform

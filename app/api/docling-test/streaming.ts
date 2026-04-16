@@ -1,4 +1,5 @@
 import { getDoclingTestErrorResponse, replaceDoclingTestWithUpload } from "@/lib/docling-test/service";
+import type { DoclingDocumentMode } from "@/lib/docling-test/contracts";
 import { NextResponse } from "next/server";
 
 export function jsonError(message: string, status: number, logs?: string[]) {
@@ -15,6 +16,7 @@ export function createDoclingTestUploadStream(params: {
   fileName: string;
   mimeType: string;
   fileSizeBytes: number;
+  mode: DoclingDocumentMode;
 }) {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
