@@ -1,20 +1,17 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
-  pgTable,
+  boolean,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
   pgEnum,
+  pgTable,
   text,
   timestamp,
-  boolean,
-  jsonb,
-  integer,
-  index,
 } from "drizzle-orm/pg-core";
 
-// ── Enums ────────────────────────────────────────────────────────────────────
-
 export const noteSourceEnum = pgEnum("note_source", ["manual", "upload"]);
-
-// ── Auth tables (existing — unchanged) ───────────────────────────────────────
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -88,8 +85,6 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-// ── Notes table ──────────────────────────────────────────────────────────────
-
 export const note = pgTable(
   "note",
   {
@@ -99,21 +94,13 @@ export const note = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-
     title: text("title").notNull().default("Untitled"),
-
-    // Editor.js JSON output — stored as-is in a jsonb column
     content: jsonb("content"),
-
-    // "manual" = typed in editor, "upload" = scanned/uploaded file
     sourceType: noteSourceEnum("source_type").notNull().default("manual"),
-
-    // Upload-specific metadata (null for manual notes)
     fileUrl: text("file_url"),
     fileName: text("file_name"),
     mimeType: text("mime_type"),
-    fileSize: integer("file_size"), // bytes
-
+    fileSize: integer("file_size"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -126,12 +113,204 @@ export const note = pgTable(
   ],
 );
 
-// ── Relations ────────────────────────────────────────────────────────────────
+export const parseTestRun = pgTable(
+  "parse_test_runs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    originalFileName: text("original_file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    fileSizeBytes: integer("file_size_bytes").notNull(),
+    parseStatus: text("parse_status", {
+      enum: ["processing", "completed", "failed"],
+    })
+      .notNull()
+      .default("processing"),
+    parseModel: text("parse_model").notNull(),
+    geminiFileUri: text("gemini_file_uri"),
+    warnings: text("warnings")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("parse_test_runs_user_id_idx").on(table.userId),
+    index("parse_test_runs_content_hash_idx").on(table.contentHash),
+    index("parse_test_runs_status_idx").on(table.parseStatus),
+  ],
+);
+
+export const parseTestCourse = pgTable(
+  "parse_test_course",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => parseTestRun.id, { onDelete: "cascade" })
+      .unique(),
+    title: text("title").notNull(),
+    courseCode: text("course_code"),
+    courseSection: text("course_section"),
+    term: text("term"),
+    instructorName: text("instructor_name"),
+    meetingDays: text("meeting_days"),
+    meetingTime: text("meeting_time"),
+    meetingLocation: text("meeting_location"),
+    requiredMaterials: text("required_materials")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    homeworkTools: text("homework_tools")
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    catalogDescription: text("catalog_description"),
+    studentSummary: text("student_summary").notNull(),
+    descriptionSource: text("description_source", {
+      enum: [
+        "catalog_description",
+        "course_objectives",
+        "learning_outcomes",
+        "inferred_from_topics",
+      ],
+    }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index("parse_test_course_run_id_idx").on(table.runId)],
+);
+
+export const parseTestAssignment = pgTable(
+  "parse_test_assignments",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    category: text("category").notNull(),
+    dateText: text("date_text").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    timeText: text("time_text"),
+    weightPercent: doublePrecision("weight_percent"),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("parse_test_assignments_course_id_idx").on(table.courseId),
+    index("parse_test_assignments_due_at_idx").on(table.dueAt),
+  ],
+);
+
+export const parseTestContact = pgTable(
+  "parse_test_contacts",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    name: text("name").notNull(),
+    email: text("email"),
+    officeHours: text("office_hours"),
+    location: text("location"),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index("parse_test_contacts_course_id_idx").on(table.courseId)],
+);
+
+export const parseTestEvent = pgTable(
+  "parse_test_events",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    category: text("category").notNull(),
+    dateText: text("date_text").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    timeText: text("time_text"),
+    location: text("location"),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("parse_test_events_course_id_idx").on(table.courseId),
+    index("parse_test_events_due_at_idx").on(table.dueAt),
+  ],
+);
+
+export const parseTestGradingItem = pgTable(
+  "parse_test_grading_items",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    weightPercent: doublePrecision("weight_percent").notNull(),
+    sourceSnippet: text("source_snippet").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index("parse_test_grading_items_course_id_idx").on(table.courseId)],
+);
+
+export const parseTestConcept = pgTable(
+  "parse_test_concepts",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => parseTestCourse.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    displayOrder: integer("display_order").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index("parse_test_concepts_course_id_idx").on(table.courseId)],
+);
 
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   notes: many(note),
+  parseTestRuns: many(parseTestRun),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -152,5 +331,66 @@ export const noteRelations = relations(note, ({ one }) => ({
   user: one(user, {
     fields: [note.userId],
     references: [user.id],
+  }),
+}));
+
+export const parseTestRunRelations = relations(parseTestRun, ({ one }) => ({
+  user: one(user, {
+    fields: [parseTestRun.userId],
+    references: [user.id],
+  }),
+  course: one(parseTestCourse, {
+    fields: [parseTestRun.id],
+    references: [parseTestCourse.runId],
+  }),
+}));
+
+export const parseTestCourseRelations = relations(
+  parseTestCourse,
+  ({ one, many }) => ({
+    run: one(parseTestRun, {
+      fields: [parseTestCourse.runId],
+      references: [parseTestRun.id],
+    }),
+    assignments: many(parseTestAssignment),
+    contacts: many(parseTestContact),
+    events: many(parseTestEvent),
+    gradingItems: many(parseTestGradingItem),
+    concepts: many(parseTestConcept),
+  }),
+);
+
+export const parseTestAssignmentRelations = relations(parseTestAssignment, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestAssignment.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestContactRelations = relations(parseTestContact, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestContact.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestEventRelations = relations(parseTestEvent, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestEvent.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestGradingItemRelations = relations(parseTestGradingItem, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestGradingItem.courseId],
+    references: [parseTestCourse.id],
+  }),
+}));
+
+export const parseTestConceptRelations = relations(parseTestConcept, ({ one }) => ({
+  course: one(parseTestCourse, {
+    fields: [parseTestConcept.courseId],
+    references: [parseTestCourse.id],
   }),
 }));

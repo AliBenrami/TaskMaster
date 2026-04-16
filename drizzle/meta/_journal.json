@@ -12,8 +12,43 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1775532138591,
-      "tag": "0001_white_wrecker",
+      "when": 1775583003830,
+      "tag": "0001_far_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775592630463,
+      "tag": "0002_pink_carlie_cooper",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775614291615,
+      "tag": "0003_good_nightcrawler",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775678400000,
+      "tag": "0004_mellow_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775689800000,
+      "tag": "0005_atomic_union",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776306278075,
+      "tag": "0006_add_notes",
       "breakpoints": true
     }
   ]
