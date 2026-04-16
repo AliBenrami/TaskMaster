@@ -15,7 +15,18 @@ export async function GET() {
   }
 
   const notes = await db
-    .select()
+    .select({
+      id: note.id,
+      userId: note.userId,
+      title: note.title,
+      content: note.content,
+      sourceType: note.sourceType,
+      fileName: note.fileName,
+      mimeType: note.mimeType,
+      fileSize: note.fileSize,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+    })
     .from(note)
     .where(eq(note.userId, session.user.id))
     .orderBy(desc(note.updatedAt));
