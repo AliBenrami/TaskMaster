@@ -11,6 +11,18 @@ type AuthFormProps = {
   googleEnabled: boolean;
 };
 
+function getWorkspaceLabel(nextPath: string) {
+  if (nextPath.startsWith("/notes")) {
+    return "notes";
+  }
+
+  if (nextPath.startsWith("/parse-test")) {
+    return "ParseTest";
+  }
+
+  return "TaskMaster";
+}
+
 function serializeDebugValue(value: unknown) {
   if (value instanceof Error) {
     const errorRecord = value as unknown as Record<string, unknown>;
@@ -76,6 +88,7 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
   const [debugDetails, setDebugDetails] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
+  const workspaceLabel = getWorkspaceLabel(nextPath);
 
   async function handleEmailAuth(formData: FormData) {
     setDebugDetails(null);
@@ -172,8 +185,8 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
         </h1>
         <p className="mt-3 text-sm leading-6 text-zinc-600">
           {isSignup
-            ? "Create an account to save syllabus parses under your own workspace."
-            : "Sign in to access your saved ParseTest syllabus workspace."}
+            ? `Create an account to save your ${workspaceLabel} workspace under your own user record.`
+            : `Sign in to access your ${workspaceLabel} workspace.`}
         </p>
       </div>
 

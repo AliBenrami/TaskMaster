@@ -43,6 +43,13 @@
       "when": 1775689800000,
       "tag": "0005_atomic_union",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776306278075,
+      "tag": "0006_add_notes",
+      "breakpoints": true
     }
   ]
 }

@@ -4,10 +4,14 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
+  pgEnum,
   pgTable,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+
+export const noteSourceEnum = pgEnum("note_source", ["manual", "upload"]);
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -79,6 +83,34 @@ export const verification = pgTable(
       .notNull(),
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
+);
+
+export const note = pgTable(
+  "note",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Untitled"),
+    content: jsonb("content"),
+    sourceType: noteSourceEnum("source_type").notNull().default("manual"),
+    fileUrl: text("file_url"),
+    fileName: text("file_name"),
+    mimeType: text("mime_type"),
+    fileSize: integer("file_size"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("note_userId_idx").on(table.userId),
+    index("note_createdAt_idx").on(table.createdAt),
+  ],
 );
 
 export const parseTestRun = pgTable(
@@ -277,6 +309,7 @@ export const parseTestConcept = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  notes: many(note),
   parseTestRuns: many(parseTestRun),
 }));
 
@@ -290,6 +323,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const noteRelations = relations(note, ({ one }) => ({
+  user: one(user, {
+    fields: [note.userId],
     references: [user.id],
   }),
 }));

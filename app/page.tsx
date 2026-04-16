@@ -14,6 +14,12 @@ export default async function Home() {
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link
+            href="/notes"
+            className="inline-flex rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-950 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-50"
+          >
+            Open notes
+          </Link>
+          <Link
             href="/parse-test"
             className="inline-flex rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-950 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-50"
           >
