@@ -17,7 +17,7 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-// POST /api/notes/upload — create a note from an uploaded file
+// POST /api/notes/upload - create a note from an uploaded file
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { NoteSurface } from "@/components/note-editor/note-surface";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,13 +31,17 @@ type NotesWorkspaceProps = {
   initialNotes: WorkspaceNote[];
   classes: WorkspaceClass[];
   initialClassId: string | null;
+  shouldCreateOnMount: boolean;
+  resetHref: string;
 };
 
+const TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return TIMESTAMP_FORMATTER.format(new Date(value));
 }
 
 function formatFileSize(value: number | null) {
@@ -64,9 +68,14 @@ function getClassFilterId(selectedFilter: string) {
   return selectedFilter;
 }
 
-export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesWorkspaceProps) {
+export function NotesWorkspace({
+  initialNotes,
+  classes,
+  initialClassId,
+  shouldCreateOnMount,
+  resetHref,
+}: NotesWorkspaceProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [notes, setNotes] = useState(() => sortWorkspaceNotes(initialNotes));
   const [selectedFilter, setSelectedFilter] = useState(() => initialClassId ?? "all");
   const [selectedId, setSelectedId] = useState<string | null>(() => initialNotes[0]?.id ?? null);
@@ -77,7 +86,7 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [hasHandledNewParam, setHasHandledNewParam] = useState(false);
+  const hasHandledCreateOnMountRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const classesById = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
   const filteredNotes = useMemo(() => {
@@ -92,33 +101,13 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
     return notes.filter((note) => note.classId === selectedFilter);
   }, [notes, selectedFilter]);
   const selectedNote = useMemo(
-    () => filteredNotes.find((note) => note.id === selectedId) ?? null,
+    () => filteredNotes.find((note) => note.id === selectedId) ?? filteredNotes[0] ?? null,
     [filteredNotes, selectedId],
   );
   const draftTitle =
     selectedNote && titleDraftState.noteId === selectedNote.id
       ? titleDraftState.value
       : (selectedNote?.title ?? "Untitled");
-
-  useEffect(() => {
-    const classIdParam = searchParams.get("classId");
-    if (classIdParam && classesById.has(classIdParam)) {
-      setSelectedFilter(classIdParam);
-      return;
-    }
-
-    if (!classIdParam) {
-      setSelectedFilter(initialClassId ?? "all");
-    }
-  }, [classesById, initialClassId, searchParams]);
-
-  useEffect(() => {
-    if (filteredNotes.some((note) => note.id === selectedId)) {
-      return;
-    }
-
-    setSelectedId(filteredNotes[0]?.id ?? null);
-  }, [filteredNotes, selectedId]);
 
   async function readNoteRecord(response: Response) {
     const payload = (await response.json().catch(() => null)) as
@@ -198,23 +187,21 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
     setStatus("New note created.");
   }
 
+  const createNoteFromCurrentFilter = useEffectEvent((silent: boolean) => {
+    startTransition(
+      () => void handleCreateNote(getClassFilterId(selectedFilter), silent),
+    );
+  });
+
   useEffect(() => {
-    if (hasHandledNewParam || searchParams.get("new") !== "1") {
+    if (!shouldCreateOnMount || hasHandledCreateOnMountRef.current) {
       return;
     }
 
-    setHasHandledNewParam(true);
-    startTransition(
-      () => void handleCreateNote(getClassFilterId(selectedFilter), true),
-    );
-    const nextSearchParams = new URLSearchParams(searchParams.toString());
-    nextSearchParams.delete("new");
-    router.replace(
-      nextSearchParams.size ? `/notes?${nextSearchParams}` : "/notes",
-    );
-    // handleCreateNote is intentionally omitted: we only want this to run once per ?new=1
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasHandledNewParam, router, searchParams, selectedFilter]);
+    hasHandledCreateOnMountRef.current = true;
+    createNoteFromCurrentFilter(true);
+    router.replace(resetHref);
+  }, [resetHref, router, shouldCreateOnMount]);
 
   async function handleDeleteNote() {
     if (!selectedNote) {
@@ -380,7 +367,7 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
                     : "bg-surface-muted text-muted-foreground",
                 )}
               >
-                {item.courseCode ? `${item.courseCode} · ` : ""}
+                {item.courseCode ? `${item.courseCode} - ` : ""}
                 {item.title}
               </button>
             ))}
@@ -408,7 +395,7 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
           ) : (
             <div className="space-y-2">
               {filteredNotes.map((note) => {
-                const isSelected = note.id === selectedId;
+                const isSelected = note.id === selectedNote?.id;
                 const linkedClass = note.classId ? classesById.get(note.classId) ?? null : null;
 
                 return (
@@ -494,7 +481,7 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
                         {selectedNote.fileName ? (
                           <Badge variant="outline">
                             {selectedNote.fileName}
-                            {selectedNote.fileSize ? ` · ${formatFileSize(selectedNote.fileSize)}` : ""}
+                            {selectedNote.fileSize ? ` - ${formatFileSize(selectedNote.fileSize)}` : ""}
                           </Badge>
                         ) : null}
                       </div>
@@ -514,7 +501,7 @@ export function NotesWorkspace({ initialNotes, classes, initialClassId }: NotesW
                         <option value="">No class</option>
                         {classes.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.courseCode ? `${item.courseCode} · ` : ""}
+                            {item.courseCode ? `${item.courseCode} - ` : ""}
                             {item.title}
                           </option>
                         ))}

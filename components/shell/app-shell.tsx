@@ -25,7 +25,9 @@ export function AppShell({ children, displayName }: AppShellProps) {
       />
       <div className="min-w-0 flex-1">
         <AppTopbar pathname={pathname} />
-        <main className="mx-auto w-full max-w-[1600px] px-6 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-[1600px] px-5 py-5 lg:px-6 lg:py-6">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -98,14 +98,10 @@ export function AuthHero({
   tagline: string;
 }) {
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-[linear-gradient(155deg,var(--surface)_0%,var(--surface-muted)_55%,color-mix(in_srgb,var(--accent)_18%,var(--surface))_130%)] p-8 shadow-[var(--shadow-card)]">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(circle_at_1px_1px,var(--foreground)_1px,transparent_0)] [background-size:22px_22px]"
-      />
+    <div className="relative flex h-full flex-col overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface p-8 shadow-[var(--shadow-card)]">
       <div className="relative flex items-center justify-between">
         <WordMark />
-        <span className="hidden rounded-full border border-border bg-surface/80 px-3 py-1 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-muted-foreground backdrop-blur sm:inline-flex">
+        <span className="hidden rounded-md border border-border bg-surface-muted px-3 py-1 text-[0.7rem] font-medium uppercase tracking-[0.16em] text-muted-foreground sm:inline-flex">
           Academic workspace
         </span>
       </div>
@@ -126,7 +122,7 @@ export function AuthHero({
         {FEATURES.map((feature) => (
           <li
             key={feature.title}
-            className="flex gap-3 rounded-[var(--radius-lg)] border border-border/80 bg-surface/70 p-4 backdrop-blur-sm"
+            className="flex gap-3 rounded-[var(--radius-lg)] border border-border bg-surface-muted p-4"
           >
             <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-[0.65rem] bg-accent/12 text-accent">
               <FeatureIcon name={feature.icon} />
@@ -144,7 +140,7 @@ export function AuthHero({
       </ul>
 
       <div className="relative mt-auto pt-10 text-xs text-muted-foreground">
-        Built for students — syllabus parsing, class-linked notes, and study tools in one place.
+        Built for students - syllabus parsing, class-linked notes, and study tools in one place.
       </div>
     </div>
   );

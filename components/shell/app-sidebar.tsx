@@ -60,32 +60,36 @@ export function AppSidebar({
   return (
     <aside
       className={cx(
-        "sticky top-0 flex h-screen shrink-0 flex-col border-r border-border bg-surface/95 px-3 py-4 backdrop-blur",
-        collapsed ? "w-[80px]" : "w-[264px]",
+        "sticky top-0 z-30 flex h-screen shrink-0 flex-col border-r border-border bg-surface px-2.5 py-3 transition-[width] duration-200 ease-out",
+        collapsed ? "w-16" : "w-56 max-lg:w-16",
       )}
     >
-      <div className="flex items-center justify-between gap-2 px-2 pb-4">
+      <div
+        className={cx(
+          "flex items-center gap-2 pb-3",
+          collapsed
+            ? "justify-center px-0"
+            : "justify-between px-1 max-lg:justify-center max-lg:px-0",
+        )}
+      >
         <Link
           href="/"
-          className="flex min-w-0 items-center gap-2.5"
+          className={cx(
+            "flex min-w-0 items-center gap-2.5",
+            collapsed ? "justify-center" : "max-lg:justify-center",
+          )}
           aria-label="TaskMaster home"
+          title="TaskMaster"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.75rem] bg-accent text-accent-foreground shadow-[var(--shadow-card)]">
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
-              <path
-                d="M5 7h14M5 12h14M5 17h8"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground text-[0.8rem] font-semibold tracking-tight text-background">
+            TM
           </span>
           {!collapsed ? (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight text-foreground">
+            <div className="min-w-0 max-lg:hidden">
+              <p className="truncate text-[0.92rem] font-semibold tracking-tight text-foreground">
                 TaskMaster
               </p>
-              <p className="truncate text-xs text-muted-foreground">
+              <p className="truncate text-[0.72rem] text-muted-foreground">
                 Academic workspace
               </p>
             </div>
@@ -95,82 +99,118 @@ export function AppSidebar({
           type="button"
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface-muted text-muted-foreground transition hover:text-foreground lg:inline-flex"
+          className={cx(
+            "hidden h-7 w-7 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground transition hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:inline-flex",
+            collapsed && "absolute left-[50px] top-4 z-30 bg-surface shadow-[var(--shadow-card)]",
+          )}
         >
           <Chevron direction={collapsed ? "right" : "left"} />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto">
+      <nav
+        aria-label="Primary navigation"
+        className={cx("flex-1 overflow-y-auto", collapsed ? "space-y-1" : "space-y-0.5")}
+      >
         {primaryNavItems.map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              title={collapsed ? item.label : undefined}
+              title={item.label}
+              aria-label={item.label}
+              aria-current={active ? "page" : undefined}
               className={cx(
-                "group flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm transition",
-                collapsed && "justify-center px-0",
+                "group relative flex items-center gap-2.5 rounded-lg text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+                collapsed
+                  ? "h-10 justify-center px-0"
+                  : "px-2.5 py-2 max-lg:h-10 max-lg:justify-center max-lg:px-0",
                 active
                   ? "bg-accent-soft font-medium text-accent"
                   : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
               )}
             >
+              {active ? (
+                <span
+                  className={cx(
+                    "absolute left-0 h-5 w-0.5 rounded-full bg-accent",
+                    !collapsed && "lg:hidden",
+                  )}
+                  aria-hidden
+                />
+              ) : null}
               <span
                 className={cx(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[0.55rem] transition",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition",
                   active
-                    ? "text-accent"
+                    ? "bg-surface text-accent shadow-[inset_0_0_0_1px_var(--border)]"
                     : "text-muted-foreground group-hover:text-foreground",
                 )}
               >
                 <NavIconGlyph name={item.icon} />
               </span>
-              {!collapsed ? <span className="truncate">{item.label}</span> : null}
+              {!collapsed ? <span className="truncate max-lg:hidden">{item.label}</span> : null}
             </Link>
           );
         })}
 
-        <div className="pt-1">
+        <div className="pt-1.5">
           <button
             type="button"
             onClick={() => setStudyOpen((current) => !current)}
             aria-expanded={studyOpen}
-            title={collapsed ? "Study" : undefined}
+            title="Study"
+            aria-label="Study"
             className={cx(
-              "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm transition",
-              collapsed && "justify-center px-0",
+              "relative flex w-full items-center gap-2.5 rounded-lg text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+              collapsed
+                ? "h-10 justify-center px-0"
+                : "px-2.5 py-2 max-lg:h-10 max-lg:justify-center max-lg:px-0",
               pathname.startsWith("/study")
                 ? "bg-accent-soft font-medium text-accent"
                 : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
             )}
           >
+            {pathname.startsWith("/study") ? (
+              <span
+                className={cx(
+                  "absolute left-0 h-5 w-0.5 rounded-full bg-accent",
+                  !collapsed && "lg:hidden",
+                )}
+                aria-hidden
+              />
+            ) : null}
             <span
               className={cx(
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-[0.55rem]",
-                pathname.startsWith("/study") ? "text-accent" : "text-muted-foreground",
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+                pathname.startsWith("/study")
+                  ? "bg-surface text-accent shadow-[inset_0_0_0_1px_var(--border)]"
+                  : "text-muted-foreground",
               )}
             >
               <NavIconGlyph name="study" />
             </span>
             {!collapsed ? (
               <>
-                <span className="flex-1 text-left">Study</span>
-                <Chevron direction={studyOpen ? "down" : "right"} />
+                <span className="flex-1 text-left max-lg:hidden">Study</span>
+                <span className="max-lg:hidden">
+                  <Chevron direction={studyOpen ? "down" : "right"} />
+                </span>
               </>
             ) : null}
           </button>
           {!collapsed && studyOpen ? (
-            <div className="mt-1 space-y-0.5 pl-10">
+            <div className="mt-1 space-y-0.5 pl-9 max-lg:hidden">
               {studyNavItems.map((item) => {
                 const active = pathname === item.href;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     className={cx(
-                      "block rounded-[var(--radius-md)] px-3 py-1.5 text-sm transition",
+                      "block rounded-md px-2.5 py-1.5 text-[0.82rem] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
                       active
                         ? "bg-surface-muted text-foreground"
                         : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
@@ -187,25 +227,44 @@ export function AppSidebar({
 
       <div
         className={cx(
-          "mt-3 space-y-3 rounded-[var(--radius-xl)] border border-border bg-surface-muted p-3",
-          collapsed && "space-y-2 p-2",
+          "mt-3 border-t border-border pt-3",
+          collapsed ? "space-y-2" : "space-y-3",
         )}
       >
-        <div className={cx("flex items-center gap-3", collapsed && "justify-center")}>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.75rem] bg-accent text-sm font-semibold text-accent-foreground">
+        <Link
+          href="/settings"
+          title={displayName}
+          aria-label={`Account settings for ${displayName}`}
+          className={cx(
+            "flex items-center gap-2.5 rounded-lg transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+            collapsed ? "justify-center p-0.5" : "px-2 py-2 max-lg:justify-center max-lg:p-0.5",
+          )}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-muted text-xs font-semibold text-foreground">
             {initials}
           </span>
           {!collapsed ? (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">
+            <div className="min-w-0 max-lg:hidden">
+              <p className="truncate text-[0.83rem] font-medium text-foreground">
                 {displayName}
               </p>
-              <p className="truncate text-xs text-muted-foreground">Signed in</p>
+              <p className="truncate text-[0.7rem] text-muted-foreground">Account</p>
             </div>
           ) : null}
-        </div>
-        {!collapsed ? <ThemeToggle /> : null}
-        <SignOutButton />
+        </Link>
+        {!collapsed ? (
+          <div className="max-lg:hidden">
+            <ThemeToggle />
+          </div>
+        ) : null}
+        {collapsed ? (
+          <SignOutButton compact />
+        ) : (
+          <>
+            <SignOutButton className="max-lg:hidden" />
+            <SignOutButton compact className="lg:hidden" />
+          </>
+        )}
       </div>
     </aside>
   );

@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "mathlive/fonts.css";
 import "mathlive/static.css";
-import { THEME_STORAGE_KEY } from "@/components/ui/theme-toggle";
+import { THEME_STORAGE_KEY } from "@/lib/theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

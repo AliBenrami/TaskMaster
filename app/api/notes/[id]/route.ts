@@ -36,7 +36,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   return NextResponse.json(found);
 }
 
-// PATCH /api/notes/:id — update title and/or content
+// PATCH /api/notes/:id - update title and/or content
 export async function PATCH(req: Request, ctx: RouteContext) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {

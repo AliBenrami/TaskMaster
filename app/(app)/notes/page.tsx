@@ -15,6 +15,7 @@ export default async function NotesPage(props: { searchParams?: SearchParams }) 
   const session = await requireServerSession("/notes");
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const classIdParam = Array.isArray(searchParams?.classId) ? searchParams.classId[0] : searchParams?.classId;
+  const newParam = Array.isArray(searchParams?.new) ? searchParams.new[0] : searchParams?.new;
   const rows = await db
     .select({
       id: note.id,
@@ -43,6 +44,22 @@ export default async function NotesPage(props: { searchParams?: SearchParams }) 
   }));
   const initialClassId: string | null =
     classIdParam && classes.some((item) => item.id === classIdParam) ? classIdParam : null;
+  const resetSearchParams = new URLSearchParams();
+  if (initialClassId) {
+    resetSearchParams.set("classId", initialClassId);
+  }
+  const resetHref = resetSearchParams.size
+    ? `/notes?${resetSearchParams.toString()}`
+    : "/notes";
 
-  return <NotesWorkspace initialNotes={initialNotes} classes={classes} initialClassId={initialClassId} />;
+  return (
+    <NotesWorkspace
+      key={`${initialClassId ?? "all"}-${newParam === "1" ? "new" : "ready"}`}
+      initialNotes={initialNotes}
+      classes={classes}
+      initialClassId={initialClassId}
+      shouldCreateOnMount={newParam === "1"}
+      resetHref={resetHref}
+    />
+  );
 }

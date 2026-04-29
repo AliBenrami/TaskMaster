@@ -29,7 +29,7 @@ export default async function SignupPage(props: { searchParams?: SearchParams })
         <AuthHero
           eyebrow="Get started"
           heading="Stop juggling tabs. Put the whole semester in one place."
-          tagline="Create an account to upload syllabi, build class-linked notes, and unlock the study tools we’re rolling out — all scoped to you."
+          tagline="Create an account to upload syllabi, build class-linked notes, and unlock the study tools we are rolling out - all scoped to you."
         />
       </div>
 

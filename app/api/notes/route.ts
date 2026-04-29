@@ -8,7 +8,7 @@ import { assertClassBelongsToUser } from "@/lib/classes/queries";
 
 export const runtime = "nodejs";
 
-// GET /api/notes — list the authenticated user's notes
+// GET /api/notes - list the authenticated user's notes
 export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
   return NextResponse.json(notes);
 }
 
-// POST /api/notes — create a manual text note
+// POST /api/notes - create a manual text note
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // content is the Editor.js output JSON — we store it as-is
+  // content is the Editor.js output JSON; we store it as-is.
   const content = body.content ?? null;
 
   const [created] = await db

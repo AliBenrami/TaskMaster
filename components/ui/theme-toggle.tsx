@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { THEME_STORAGE_KEY, type ThemePreference } from "@/lib/theme";
 import { cx } from "@/lib/utils";
-
-export const THEME_STORAGE_KEY = "taskmaster-theme";
-
-export type ThemePreference = "system" | "light" | "dark";
 
 function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

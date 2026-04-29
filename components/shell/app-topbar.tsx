@@ -35,12 +35,12 @@ export function AppTopbar({ pathname }: AppTopbarProps) {
   }, [menuOpen]);
 
   return (
-    <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background/85 px-6 py-4 backdrop-blur">
+    <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-5 py-3 lg:px-6">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           Workspace
         </p>
-        <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-foreground">
+        <h1 className="mt-0.5 truncate text-lg font-semibold tracking-tight text-foreground">
           {title}
         </h1>
       </div>

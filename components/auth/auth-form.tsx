@@ -14,46 +14,6 @@ type AuthFormProps = {
   googleEnabled: boolean;
 };
 
-function serializeDebugValue(value: unknown) {
-  if (value instanceof Error) {
-    const errorRecord = value as unknown as Record<string, unknown>;
-    const withProps = Object.fromEntries(
-      Object.getOwnPropertyNames(value).map((key) => [key, errorRecord[key]]),
-    );
-
-    return JSON.stringify(
-      {
-        name: value.name,
-        message: value.message,
-        stack: value.stack,
-        cause: value.cause,
-        ...withProps,
-      },
-      null,
-      2,
-    );
-  }
-
-  if (value && typeof value === "object") {
-    try {
-      return JSON.stringify(
-        {
-          ...Object.fromEntries(
-            Object.getOwnPropertyNames(value).map((key) => [key, (value as Record<string, unknown>)[key]]),
-          ),
-          ...value,
-        },
-        null,
-        2,
-      );
-    } catch {
-      return String(value);
-    }
-  }
-
-  return String(value);
-}
-
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -76,12 +36,10 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [debugDetails, setDebugDetails] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
 
   async function handleEmailAuth(formData: FormData) {
-    setDebugDetails(null);
     const name = formData.get("name");
     const email = formData.get("email");
     const password = formData.get("password");
@@ -110,7 +68,6 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
           });
 
       if (result.error) {
-        setDebugDetails(serializeDebugValue(result.error));
         throw new Error(result.error.message || "Authentication failed.");
       }
 
@@ -120,7 +77,6 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
       });
     } catch (authError) {
       setMessage(null);
-      setDebugDetails(serializeDebugValue(authError));
       setError(
         getErrorMessage(
           authError,
@@ -133,7 +89,6 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
   async function handleGoogleAuth() {
     setError(null);
     setMessage("Redirecting to Google.");
-    setDebugDetails(null);
 
     try {
       const result = await authClient.signIn.social({
@@ -142,24 +97,10 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
       });
 
       if (result.error) {
-        setDebugDetails(
-          serializeDebugValue({
-            googleEnabled,
-            nextPath,
-            error: result.error,
-          }),
-        );
         throw new Error(result.error.message || "Google sign-in could not start.");
       }
     } catch (authError) {
       setMessage(null);
-      setDebugDetails(
-        serializeDebugValue({
-          googleEnabled,
-          nextPath,
-          error: authError,
-        }),
-      );
       setError(getErrorMessage(authError, "Google sign-in could not start."));
     }
   }
@@ -184,7 +125,7 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {isSignup
               ? "Takes under a minute. You can upload a syllabus right after."
-              : "Welcome back — enter your details to continue."}
+              : "Welcome back - enter your details to continue."}
           </p>
         </div>
 
@@ -264,20 +205,9 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
             </div>
           ) : null}
 
-          {debugDetails ? (
-            <details className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-4 py-3 text-sm text-muted-foreground">
-              <summary className="cursor-pointer font-medium text-foreground">
-                Auth debug details
-              </summary>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground">
-                {debugDetails}
-              </pre>
-            </details>
-          ) : null}
-
           <Button type="submit" disabled={isPending} className="w-full">
             {isPending
-              ? "Please wait…"
+              ? "Please wait..."
               : isSignup
                 ? "Create account"
                 : "Sign in"}
