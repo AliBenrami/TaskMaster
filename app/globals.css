@@ -2,22 +2,39 @@
 
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --note-surface: #ffffff;
-  --note-surface-muted: #fafafa;
-  --note-border: #e4e4e7;
-  --note-border-strong: #d4d4d8;
-  --note-muted-foreground: #71717a;
-  --note-toolbar: #ffffff;
-  --note-toolbar-hover: #f4f4f5;
-  --note-toolbar-active: #eef4ff;
-  --note-toolbar-active-foreground: #1d4ed8;
+  --foreground: #18181b;
+  --surface: #ffffff;
+  --surface-muted: #fafafa;
+  --surface-elevated: #f4f4f5;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --muted-foreground: #71717a;
+  --accent: oklch(0.55 0.22 265);
+  --accent-foreground: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, white);
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --shadow-card: 0 1px 2px 0 rgb(24 24 27 / 0.06), 0 10px 30px -16px rgb(24 24 27 / 0.18);
+  --note-surface: var(--surface);
+  --note-surface-muted: var(--surface-muted);
+  --note-border: var(--border);
+  --note-border-strong: var(--border-strong);
+  --note-muted-foreground: var(--muted-foreground);
+  --note-toolbar: var(--surface);
+  --note-toolbar-hover: var(--surface-elevated);
+  --note-toolbar-active: color-mix(in srgb, var(--accent) 14%, white);
+  --note-toolbar-active-foreground: var(--accent);
   --note-code-bg: #18181b;
   --note-code-fg: #fafafa;
-  --note-selection: rgba(29, 78, 216, 0.14);
-  --note-selection-strong: rgba(29, 78, 216, 0.22);
+  --note-selection: color-mix(in srgb, var(--accent) 18%, transparent);
+  --note-selection-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   --code-accent: #0550ae;
   --code-comment: #6e7781;
   --code-keyword: #cf222e;
@@ -31,27 +48,49 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --note-surface: #09090b;
-    --note-surface-muted: #18181b;
-    --note-border: #27272a;
-    --note-border-strong: #3f3f46;
-    --note-muted-foreground: #a1a1aa;
-    --note-toolbar: #18181b;
-    --note-toolbar-hover: #27272a;
-    --note-toolbar-active: rgba(96, 165, 250, 0.16);
-    --note-toolbar-active-foreground: #93c5fd;
+html.dark {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --surface: #111114;
+  --surface-muted: #18181b;
+  --surface-elevated: #202024;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --muted-foreground: #a1a1aa;
+  --accent: oklch(0.66 0.2 272);
+  --accent-foreground: #09090b;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, #111114);
+  --danger: #f87171;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.2), 0 18px 36px -20px rgb(0 0 0 / 0.5);
+  --note-surface: var(--surface);
+  --note-surface-muted: var(--surface-muted);
+  --note-border: var(--border);
+  --note-border-strong: var(--border-strong);
+  --note-muted-foreground: var(--muted-foreground);
+  --note-toolbar: var(--surface-muted);
+  --note-toolbar-hover: #27272a;
+  --note-toolbar-active: color-mix(in srgb, var(--accent) 18%, #111114);
+  --note-toolbar-active-foreground: #c7d2fe;
     --note-code-bg: #09090b;
     --note-code-fg: #f4f4f5;
-    --note-selection: rgba(96, 165, 250, 0.18);
-    --note-selection-strong: rgba(96, 165, 250, 0.3);
+    --note-selection: color-mix(in srgb, var(--accent) 20%, transparent);
+    --note-selection-strong: color-mix(in srgb, var(--accent) 32%, transparent);
     --code-accent: #7dd3fc;
     --code-comment: #7c8ab8;
     --code-keyword: #f472b6;
@@ -60,14 +99,17 @@
     --code-function: #5eead4;
     --code-type: #fca5a5;
     --code-property: #fcd34d;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+html.dark body {
+  color-scheme: dark;
 }
 
 .note-editor,

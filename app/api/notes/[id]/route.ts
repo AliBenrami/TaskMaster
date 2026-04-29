@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { assertClassBelongsToUser } from "@/lib/classes/queries";
 
 export const runtime = "nodejs";
 
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: "Note not found" }, { status: 404 });
   }
 
-  let body: { title?: string; content?: unknown };
+  let body: { title?: string; content?: unknown; classId?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -61,6 +62,20 @@ export async function PATCH(req: Request, ctx: RouteContext) {
   const updates: Record<string, unknown> = {};
   if (typeof body.title === "string") updates.title = body.title.trim() || "Untitled";
   if (body.content !== undefined) updates.content = body.content;
+  if (body.classId !== undefined) {
+    if (body.classId !== null && typeof body.classId !== "string") {
+      return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+    }
+
+    if (typeof body.classId === "string") {
+      const ownedClass = await assertClassBelongsToUser(body.classId, session.user.id);
+      if (!ownedClass) {
+        return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+      }
+    }
+
+    updates.classId = body.classId;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json(

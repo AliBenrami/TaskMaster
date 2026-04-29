@@ -4,24 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { WordMark } from "@/components/auth/auth-hero";
 
 type AuthFormProps = {
   mode: "login" | "signup";
   nextPath: string;
   googleEnabled: boolean;
 };
-
-function getWorkspaceLabel(nextPath: string) {
-  if (nextPath.startsWith("/notes")) {
-    return "notes";
-  }
-
-  if (nextPath.startsWith("/parse-test")) {
-    return "ParseTest";
-  }
-
-  return "TaskMaster";
-}
 
 function serializeDebugValue(value: unknown) {
   if (value instanceof Error) {
@@ -88,7 +79,6 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
   const [debugDetails, setDebugDetails] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
-  const workspaceLabel = getWorkspaceLabel(nextPath);
 
   async function handleEmailAuth(formData: FormData) {
     setDebugDetails(null);
@@ -174,112 +164,154 @@ export function AuthForm({ mode, nextPath, googleEnabled }: AuthFormProps) {
     }
   }
 
+  const statusMessage = error
+    ? { tone: "danger" as const, text: error }
+    : message
+      ? { tone: "info" as const, text: message }
+      : null;
+
   return (
-    <section className="w-full rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-          TaskMaster
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-          {isSignup ? "Create your account" : "Sign in"}
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-zinc-600">
-          {isSignup
-            ? `Create an account to save your ${workspaceLabel} workspace under your own user record.`
-            : `Sign in to access your ${workspaceLabel} workspace.`}
-        </p>
+    <section className="w-full">
+      <div className="mb-6 flex items-center justify-between lg:hidden">
+        <WordMark />
       </div>
 
-      <form action={handleEmailAuth} className="mt-6 space-y-4">
-        {isSignup ? (
+      <div className="rounded-[var(--radius-xl)] border border-border bg-surface p-6 shadow-[var(--shadow-card)] sm:p-8">
+        <div>
+          <h1 className="text-[1.65rem] font-semibold tracking-tight text-foreground">
+            {isSignup ? "Create your account" : "Sign in"}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {isSignup
+              ? "Takes under a minute. You can upload a syllabus right after."
+              : "Welcome back — enter your details to continue."}
+          </p>
+        </div>
+
+        {googleEnabled ? (
+          <div className="mt-6">
+            <Button
+              type="button"
+              onClick={handleGoogleAuth}
+              disabled={isPending}
+              variant="outline"
+              className="w-full"
+            >
+              <GoogleGlyph />
+              Continue with Google
+            </Button>
+
+            <div
+              role="separator"
+              className="mt-6 flex items-center gap-3 text-[0.7rem] font-medium uppercase tracking-[0.18em] text-muted-foreground"
+            >
+              <span className="h-px flex-1 bg-border" />
+              <span>or email</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </div>
+        ) : null}
+
+        <form action={handleEmailAuth} className="mt-6 space-y-4">
+          {isSignup ? (
+            <label className="block">
+              <span className="text-sm font-medium text-foreground">Name</span>
+              <Input
+                type="text"
+                name="name"
+                autoComplete="name"
+                className="mt-2"
+                placeholder="Jane Doe"
+                required
+              />
+            </label>
+          ) : null}
+
           <label className="block">
-            <span className="text-sm font-medium text-zinc-800">Name</span>
-            <input
-              type="text"
-              name="name"
-              autoComplete="name"
-              className="mt-2 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none ring-0 transition focus:border-zinc-500"
-              placeholder="Jane Doe"
+            <span className="text-sm font-medium text-foreground">Email</span>
+            <Input
+              type="email"
+              name="email"
+              autoComplete="email"
+              className="mt-2"
+              placeholder="you@example.com"
               required
             />
           </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-foreground">Password</span>
+            <Input
+              type="password"
+              name="password"
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              className="mt-2"
+              placeholder={isSignup ? "At least 8 characters" : "Your password"}
+              required
+            />
+          </label>
+
+          {statusMessage ? (
+            <div
+              aria-live="polite"
+              className={
+                statusMessage.tone === "danger"
+                  ? "rounded-[var(--radius-lg)] border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+                  : "rounded-[var(--radius-lg)] border border-border bg-surface-muted px-4 py-3 text-sm text-muted-foreground"
+              }
+            >
+              {statusMessage.text}
+            </div>
+          ) : null}
+
+          {debugDetails ? (
+            <details className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-4 py-3 text-sm text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground">
+                Auth debug details
+              </summary>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-foreground">
+                {debugDetails}
+              </pre>
+            </details>
+          ) : null}
+
+          <Button type="submit" disabled={isPending} className="w-full">
+            {isPending
+              ? "Please wait…"
+              : isSignup
+                ? "Create account"
+                : "Sign in"}
+          </Button>
+        </form>
+
+        {!googleEnabled ? (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Google sign-in is hidden until <code>GOOGLE_CLIENT_ID</code> and{" "}
+            <code>GOOGLE_CLIENT_SECRET</code> are configured.
+          </p>
         ) : null}
+      </div>
 
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-800">Email</span>
-          <input
-            type="email"
-            name="email"
-            autoComplete="email"
-            className="mt-2 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none ring-0 transition focus:border-zinc-500"
-            placeholder="you@example.com"
-            required
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-800">Password</span>
-          <input
-            type="password"
-            name="password"
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            className="mt-2 w-full rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none ring-0 transition focus:border-zinc-500"
-            placeholder={isSignup ? "Create a password" : "Enter your password"}
-            required
-          />
-        </label>
-
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600"
-        >
-          {error ? <span className="text-rose-600">{error}</span> : message ?? "Use email/password or Google."}
-        </div>
-
-        {debugDetails ? (
-          <details className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-            <summary className="cursor-pointer font-medium text-zinc-800">
-              Auth debug details
-            </summary>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-zinc-700">
-              {debugDetails}
-            </pre>
-          </details>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isPending ? "Please wait..." : isSignup ? "Create account" : "Sign in"}
-        </button>
-      </form>
-
-      {googleEnabled ? (
-        <button
-          type="button"
-          onClick={handleGoogleAuth}
-          disabled={isPending}
-          className="mt-3 w-full rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Continue with Google
-        </button>
-      ) : (
-        <div className="mt-3 rounded-xl border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500">
-          Google sign-in is hidden until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are configured.
-        </div>
-      )}
-
-      <p className="mt-6 text-sm text-zinc-600">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         {isSignup ? "Already have an account?" : "Need an account?"}{" "}
         <Link
           href={`${isSignup ? "/login" : "/signup"}?next=${encodeURIComponent(nextPath)}`}
-          className="font-medium text-zinc-950 underline underline-offset-4"
+          className="font-medium text-accent underline-offset-4 hover:underline"
         >
           {isSignup ? "Sign in" : "Create one"}
         </Link>
       </p>
     </section>
+  );
+}
+
+function GoogleGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+      <path
+        d="M21.35 11.1h-9.17v2.9h5.27c-.23 1.42-1.66 4.16-5.27 4.16-3.17 0-5.76-2.63-5.76-5.86s2.59-5.86 5.76-5.86c1.8 0 3.01.77 3.7 1.43l2.53-2.43C16.8 3.86 14.77 3 12.18 3 7.43 3 3.58 6.85 3.58 11.6s3.85 8.6 8.6 8.6c4.96 0 8.25-3.49 8.25-8.41 0-.57-.06-.99-.08-1.29z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }

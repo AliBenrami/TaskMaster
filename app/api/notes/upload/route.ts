@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
+import { assertClassBelongsToUser } from "@/lib/classes/queries";
 
 export const runtime = "nodejs";
 
@@ -82,12 +83,23 @@ export async function POST(req: Request) {
     typeof rawTitle === "string" && rawTitle.trim()
       ? rawTitle.trim()
       : file.name.replace(/\.[^.]+$/, "") || "Uploaded Note";
+  const rawClassId = formData.get("classId");
+  const classId =
+    typeof rawClassId === "string" && rawClassId.trim() ? rawClassId.trim() : null;
+
+  if (classId) {
+    const ownedClass = await assertClassBelongsToUser(classId, session.user.id);
+    if (!ownedClass) {
+      return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+    }
+  }
 
   const [created] = await db
     .insert(note)
     .values({
       userId: session.user.id,
       title,
+      classId,
       sourceType: "upload",
       fileUrl,
       fileName: file.name,
