@@ -6,6 +6,7 @@ export type NoteSourceType = "manual" | "upload";
 export type NoteRecord = {
   id: string;
   title: string;
+  classId: string | null;
   content: unknown;
   sourceType: NoteSourceType;
   fileName: string | null;
@@ -31,6 +32,7 @@ export type NoteGenerationMetadata = {
 export type WorkspaceNote = {
   id: string;
   title: string;
+  classId: string | null;
   sourceType: NoteSourceType;
   fileName: string | null;
   mimeType: string | null;
@@ -123,6 +125,7 @@ export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
   return {
     id: record.id,
     title: record.title,
+    classId: record.classId,
     sourceType: record.sourceType,
     fileName: record.fileName,
     mimeType: record.mimeType,

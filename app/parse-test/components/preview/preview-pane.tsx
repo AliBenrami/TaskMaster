@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { ParseTestViewModel } from "@/lib/parse-test/contracts";
 import { ParseTestRunSwitcher } from "../run-switcher";
 import {
@@ -17,7 +18,7 @@ type PreviewPaneProps = {
     nextAssignment: ParseTestViewModel["assignments"][number] | null;
     totalGradedWeight: number;
   };
-  gradeDistributionStyle: { background: string };
+  gradeDistributionStyle: CSSProperties;
   currentIndex: number;
   totalCount: number;
   prevRunId: string | null;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertClassBelongsToUser } from "@/lib/classes/queries";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
 import { generateTopicNotesFromFile, markdownToNoteDocument } from "@/lib/notes/generation";
@@ -77,6 +78,16 @@ export async function POST(req: Request) {
     typeof rawTitle === "string" && rawTitle.trim()
       ? rawTitle.trim()
       : file.name.replace(/\.[^.]+$/, "") || "Uploaded Note";
+  const rawClassId = formData.get("classId");
+  const classId =
+    typeof rawClassId === "string" && rawClassId.trim() ? rawClassId.trim() : null;
+
+  if (classId) {
+    const ownedClass = await assertClassBelongsToUser(classId, session.user.id);
+    if (!ownedClass) {
+      return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+    }
+  }
 
   let generated: Awaited<ReturnType<typeof generateTopicNotesFromFile>>;
   try {
@@ -103,9 +114,8 @@ export async function POST(req: Request) {
       generated.topics.map((topic, index) => ({
         userId: session.user.id,
         title:
-          generated.topics.length === 1
-            ? title
-            : `${title} - ${topic.title}`,
+          generated.topics.length === 1 ? title : `${title} - ${topic.title}`,
+        classId,
         sourceType: "upload" as const,
         fileName: file.name,
         mimeType: file.type,

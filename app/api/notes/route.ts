@@ -3,15 +3,24 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { assertClassBelongsToUser } from "@/lib/classes/queries";
 
 export const runtime = "nodejs";
 
-// GET /api/notes — list the authenticated user's notes
-export async function GET() {
+// GET /api/notes - list the authenticated user's notes
+export async function GET(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const classIdParam = new URL(req.url).searchParams.get("classId");
+  if (classIdParam) {
+    const ownedClass = await assertClassBelongsToUser(classIdParam, session.user.id);
+    if (!ownedClass) {
+      return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+    }
   }
 
   const notes = await db
@@ -19,6 +28,7 @@ export async function GET() {
       id: note.id,
       userId: note.userId,
       title: note.title,
+      classId: note.classId,
       content: note.content,
       sourceType: note.sourceType,
       fileName: note.fileName,
@@ -29,20 +39,25 @@ export async function GET() {
       updatedAt: note.updatedAt,
     })
     .from(note)
-    .where(eq(note.userId, session.user.id))
+    .where(
+      and(
+        eq(note.userId, session.user.id),
+        classIdParam ? eq(note.classId, classIdParam) : undefined,
+      ),
+    )
     .orderBy(desc(note.updatedAt));
 
   return NextResponse.json(notes);
 }
 
-// POST /api/notes — create a manual text note
+// POST /api/notes - create a manual text note
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { title?: string; content?: unknown };
+  let body: { title?: string; content?: unknown; classId?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -56,8 +71,16 @@ export async function POST(req: Request) {
     typeof body.title === "string" && body.title.trim()
       ? body.title.trim()
       : "Untitled";
+  const classId = body.classId === null ? null : typeof body.classId === "string" ? body.classId : null;
 
-  // content is the Editor.js output JSON — we store it as-is
+  if (classId) {
+    const ownedClass = await assertClassBelongsToUser(classId, session.user.id);
+    if (!ownedClass) {
+      return NextResponse.json({ error: "Invalid class selection" }, { status: 400 });
+    }
+  }
+
+  // content is the Editor.js output JSON; we store it as-is.
   const content = body.content ?? null;
 
   const [created] = await db
@@ -65,6 +88,7 @@ export async function POST(req: Request) {
     .values({
       userId: session.user.id,
       title,
+      classId,
       content,
       sourceType: "manual",
     })

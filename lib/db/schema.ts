@@ -103,6 +103,9 @@ export const note = pgTable(
     mimeType: text("mime_type"),
     fileSize: integer("file_size"),
     embedding: vector("embedding", { dimensions: 768 }),
+    classId: text("class_id").references(() => parseTestCourse.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -111,6 +114,7 @@ export const note = pgTable(
   },
   (table) => [
     index("note_userId_idx").on(table.userId),
+    index("note_class_id_idx").on(table.classId),
     index("note_createdAt_idx").on(table.createdAt),
   ],
 );
@@ -334,6 +338,10 @@ export const noteRelations = relations(note, ({ one }) => ({
     fields: [note.userId],
     references: [user.id],
   }),
+  class: one(parseTestCourse, {
+    fields: [note.classId],
+    references: [parseTestCourse.id],
+  }),
 }));
 
 export const parseTestRunRelations = relations(parseTestRun, ({ one }) => ({
@@ -359,6 +367,7 @@ export const parseTestCourseRelations = relations(
     events: many(parseTestEvent),
     gradingItems: many(parseTestGradingItem),
     concepts: many(parseTestConcept),
+    notes: many(note),
   }),
 );
 
