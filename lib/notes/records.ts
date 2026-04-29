@@ -11,6 +11,7 @@ export type NoteRecord = {
   fileName: string | null;
   mimeType: string | null;
   fileSize: number | null;
+  embedding?: number[] | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 };
@@ -34,6 +35,7 @@ export type WorkspaceNote = {
   fileName: string | null;
   mimeType: string | null;
   fileSize: number | null;
+  embedding: number[] | null;
   createdAt: string;
   updatedAt: string;
   content: NoteContent;
@@ -64,7 +66,15 @@ export function normalizeNoteDocument(value: unknown): NoteDocument {
   return parsed.data;
 }
 
-function normalizeNoteGeneration(value: unknown): NoteGenerationMetadata | null {
+function normalizeEmbedding(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value.filter((item): item is number => typeof item === "number");
+}
+
+function normalizeNoteGeneration(value: unknown, noteEmbedding: number[] | null): NoteGenerationMetadata | null {
   if (!value || typeof value !== "object" || !("noteGeneration" in value)) {
     return null;
   }
@@ -87,7 +97,7 @@ function normalizeNoteGeneration(value: unknown): NoteGenerationMetadata | null 
     return null;
   }
 
-  const embedding = candidate.embedding.filter((value): value is number => typeof value === "number");
+  const embedding = noteEmbedding ?? normalizeEmbedding(candidate.embedding) ?? [];
 
   return {
     fileName: candidate.fileName,
@@ -108,6 +118,7 @@ function normalizeNoteGeneration(value: unknown): NoteGenerationMetadata | null 
 
 export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
   const document = normalizeNoteDocument(record.content);
+  const embedding = normalizeEmbedding(record.embedding);
 
   return {
     id: record.id,
@@ -116,10 +127,11 @@ export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
     fileName: record.fileName,
     mimeType: record.mimeType,
     fileSize: record.fileSize,
+    embedding,
     createdAt: normalizeDate(record.createdAt),
     updatedAt: normalizeDate(record.updatedAt),
     content: createNoteContent(document),
-    generation: normalizeNoteGeneration(record.content),
+    generation: normalizeNoteGeneration(record.content, embedding),
   };
 }
 

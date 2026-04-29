@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  vector,
 } from "drizzle-orm/pg-core";
 
 export const noteSourceEnum = pgEnum("note_source", ["manual", "upload"]);
@@ -101,6 +102,7 @@ export const note = pgTable(
     fileName: text("file_name"),
     mimeType: text("mime_type"),
     fileSize: integer("file_size"),
+    embedding: vector("embedding", { dimensions: 768 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

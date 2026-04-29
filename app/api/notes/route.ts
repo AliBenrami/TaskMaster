@@ -24,6 +24,7 @@ export async function GET() {
       fileName: note.fileName,
       mimeType: note.mimeType,
       fileSize: note.fileSize,
+      embedding: note.embedding,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
     })
