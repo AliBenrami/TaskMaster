@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { THEME_STORAGE_KEY, type ThemePreference } from "@/lib/theme";
 import { cx } from "@/lib/utils";
+
+const THEME_CHANGE_EVENT = "taskmaster-theme-change";
+const THEME_OPTIONS = ["system", "light", "dark"] as const;
 
 function getSystemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -25,15 +28,29 @@ function readStoredTheme(): ThemePreference {
     : "system";
 }
 
+function subscribeToThemeChange(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange);
+  };
+}
+
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemePreference>(readStoredTheme);
+  const theme = useSyncExternalStore(
+    subscribeToThemeChange,
+    readStoredTheme,
+    () => "system",
+  );
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
-
-  useEffect(() => {
+    const storedTheme = readStoredTheme();
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    applyTheme(storedTheme);
+
     const handleMediaChange = () => {
       if (
         (window.localStorage.getItem(THEME_STORAGE_KEY) ?? "system") === "system"
@@ -47,14 +64,14 @@ export function ThemeToggle() {
   }, []);
 
   function handleThemeChange(nextTheme: ThemePreference) {
-    setTheme(nextTheme);
     window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     applyTheme(nextTheme);
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }
 
   return (
     <div className="inline-flex items-center rounded-lg border border-border bg-surface p-1">
-      {(["system", "light", "dark"] as const).map((option) => (
+      {THEME_OPTIONS.map((option) => (
         <Button
           key={option}
           type="button"

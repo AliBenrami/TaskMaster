@@ -7,12 +7,15 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cx } from "@/lib/utils";
 import { NavIconGlyph } from "./nav-icon";
 import { isActivePath, primaryNavItems, studyNavItems } from "./navigation";
+import type { SidebarBehavior } from "./sidebar-preference";
 
 type AppSidebarProps = {
   pathname: string;
   displayName: string;
+  behavior: SidebarBehavior;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  onHoverChange: (expanded: boolean) => void;
 };
 
 function Chevron({ direction }: { direction: "left" | "right" | "down" | "up" }) {
@@ -42,8 +45,10 @@ function Chevron({ direction }: { direction: "left" | "right" | "down" | "up" })
 export function AppSidebar({
   pathname,
   displayName,
+  behavior,
   collapsed,
   onToggleCollapsed,
+  onHoverChange,
 }: AppSidebarProps) {
   const [studyOpen, setStudyOpen] = useState(() => pathname.startsWith("/study"));
   const initials = useMemo(
@@ -59,6 +64,29 @@ export function AppSidebar({
 
   return (
     <aside
+      onMouseEnter={() => {
+        if (behavior === "hover") {
+          onHoverChange(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (behavior === "hover") {
+          onHoverChange(false);
+        }
+      }}
+      onFocusCapture={() => {
+        if (behavior === "hover") {
+          onHoverChange(true);
+        }
+      }}
+      onBlurCapture={(event) => {
+        if (
+          behavior === "hover" &&
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          onHoverChange(false);
+        }
+      }}
       className={cx(
         "sticky top-0 z-30 flex h-screen shrink-0 flex-col border-r border-border bg-surface px-2.5 py-3 transition-[width] duration-200 ease-out",
         collapsed ? "w-16" : "w-56 max-lg:w-16",
@@ -95,17 +123,16 @@ export function AppSidebar({
             </div>
           ) : null}
         </Link>
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={cx(
-            "hidden h-7 w-7 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground transition hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:inline-flex",
-            collapsed && "absolute left-[50px] top-4 z-30 bg-surface shadow-[var(--shadow-card)]",
-          )}
-        >
-          <Chevron direction={collapsed ? "right" : "left"} />
-        </button>
+        {behavior === "manual" ? (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="absolute -right-3 top-5 z-40 hidden h-8 w-6 items-center justify-center rounded-r-full border border-l-0 border-border bg-surface text-muted-foreground shadow-[var(--shadow-card)] transition hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 lg:inline-flex"
+          >
+            <Chevron direction={collapsed ? "right" : "left"} />
+          </button>
+        ) : null}
       </div>
 
       <nav
