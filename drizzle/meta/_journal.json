@@ -50,6 +50,13 @@
       "when": 1776306278075,
       "tag": "0006_add_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776873600000,
+      "tag": "0007_add_note_class_link",
+      "breakpoints": true
     }
   ]
 }
