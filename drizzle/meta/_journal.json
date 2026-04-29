@@ -50,6 +50,20 @@
       "when": 1776306278075,
       "tag": "0006_add_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777660800000,
+      "tag": "0007_add_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777431474248,
+      "tag": "0008_daffy_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

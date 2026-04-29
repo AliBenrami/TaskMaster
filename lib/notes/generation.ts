@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { NoteBlock, NoteDocument } from "@/lib/notes/types";
+import { GeminiEmbedder } from "@/lib/vector/embedder";
 
 const AZURE_DOCUMENT_INTELLIGENCE_API_VERSION = "2024-11-30";
 const EMBEDDING_DIMENSIONS = 768;
@@ -227,42 +228,21 @@ export async function splitMarkdownIntoTopics(markdown: string) {
   }));
 }
 
-function l2Normalize(values: number[]) {
-  const magnitude = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
-  if (!Number.isFinite(magnitude) || magnitude === 0) {
-    throw new Error("Gemini returned an embedding vector with zero magnitude.");
-  }
+export async function embedGeneratedTopics(
+  topics: Array<{ title: string; markdown: string }>,
+) {
+  if (topics.length === 0) return [];
 
-  return values.map((value) => value / magnitude);
-}
+  const embedder = new GeminiEmbedder({ dimensions: EMBEDDING_DIMENSIONS });
+  const vectors = await embedder.embed(
+    topics.map((topic) => `${topic.title}\n\n${topic.markdown}`),
+    "RETRIEVAL_DOCUMENT",
+  );
 
-export async function embedGeneratedTopics(topics: Array<{ title: string; markdown: string }>) {
-  const ai = getGoogleAiClient();
-  const response = await ai.models.embedContent({
-    model: getRequiredEnv("GEMINI_EMBEDDINGS_MODEL"),
-    contents: topics.map((topic) => `${topic.title}\n\n${topic.markdown}`),
-    config: {
-      outputDimensionality: EMBEDDING_DIMENSIONS,
-      taskType: "RETRIEVAL_DOCUMENT",
-    },
-  });
-
-  const embeddings = response.embeddings ?? [];
-  if (embeddings.length !== topics.length) {
-    throw new Error("Gemini returned an unexpected number of embeddings.");
-  }
-
-  return topics.map((topic, index) => {
-    const values = embeddings[index]?.values ?? [];
-    if (values.length !== EMBEDDING_DIMENSIONS) {
-      throw new Error(`Gemini returned a ${values.length}-dimensional embedding instead of ${EMBEDDING_DIMENSIONS}.`);
-    }
-
-    return {
-      ...topic,
-      embedding: l2Normalize(values),
-    };
-  });
+  return topics.map((topic, index) => ({
+    ...topic,
+    embedding: vectors[index],
+  }));
 }
 
 function createBlockId() {

@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  vector,
 } from "drizzle-orm/pg-core";
 
 export const noteSourceEnum = pgEnum("note_source", ["manual", "upload"]);
@@ -287,6 +288,56 @@ export const parseTestGradingItem = pgTable(
   },
   (table) => [index("parse_test_grading_items_course_id_idx").on(table.courseId)],
 );
+
+export const embedding = pgTable(
+  "embedding",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    chunkIndex: integer("chunk_index").notNull().default(0),
+    content: text("content").notNull(),
+    contentHash: text("content_hash").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    embedding: vector("embedding", { dimensions: 768 }).notNull(),
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("embedding_user_source_idx").on(
+      table.userId,
+      table.sourceType,
+      table.sourceId,
+    ),
+    index("embedding_hash_idx").on(
+      table.userId,
+      table.sourceType,
+      table.sourceId,
+      table.contentHash,
+    ),
+    index("embedding_hnsw_idx")
+      .using("hnsw", table.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+export const embeddingRelations = relations(embedding, ({ one }) => ({
+  user: one(user, {
+    fields: [embedding.userId],
+    references: [user.id],
+  }),
+}));
 
 export const parseTestConcept = pgTable(
   "parse_test_concepts",

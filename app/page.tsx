@@ -31,6 +31,12 @@ export default async function Home() {
           >
             Open editor harness
           </Link>
+          <Link
+            href="/vector-search"
+            className="inline-flex rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-950 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-zinc-50"
+          >
+            Open vector search
+          </Link>
           {session ? (
             <span className="inline-flex rounded-full bg-zinc-100 px-4 py-2 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
               Signed in as {session.user.name || session.user.email}

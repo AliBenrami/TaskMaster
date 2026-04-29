@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
 import { generateTopicNotesFromFile, markdownToNoteDocument } from "@/lib/notes/generation";
+import { vectorService } from "@/lib/vector";
 
 export const runtime = "nodejs";
 
@@ -127,6 +128,30 @@ export async function POST(req: Request) {
       })),
     )
     .returning();
+
+  await Promise.all(
+    created.map((noteRow, index) => {
+      const topic = generated.topics[index];
+      if (!topic) return Promise.resolve();
+      return vectorService.ingest({
+        userId: session.user.id,
+        sourceType: "note",
+        sourceId: noteRow.id,
+        chunks: [
+          {
+            content: `${topic.title}\n\n${topic.markdown}`,
+            metadata: {
+              title: topic.title,
+              fileName: file.name,
+              topicIndex: index,
+              topicCount: generated.topics.length,
+            },
+            embedding: topic.embedding,
+          },
+        ],
+      });
+    }),
+  );
 
   return NextResponse.json(
     {
