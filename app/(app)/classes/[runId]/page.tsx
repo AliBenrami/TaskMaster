@@ -15,6 +15,17 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const tabs = ["overview", "contacts", "grading", "schedule", "notes"] as const;
 type ClassTab = (typeof tabs)[number];
+type ScheduleItem = {
+  id: string;
+  title: string;
+  category: string;
+  dateText: string;
+  dueAt: string | null;
+  timeText: string | null;
+};
+type UpcomingClassItem = ScheduleItem & {
+  kind: "Assignment" | "Event";
+};
 
 function readTab(value: string | string[] | undefined): ClassTab {
   const tab = Array.isArray(value) ? value[0] : value;
@@ -38,6 +49,35 @@ function formatDate(value: string | null, fallback: string) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getScheduleTime(value: ScheduleItem) {
+  return new Date(value.dueAt ?? "9999-12-31T00:00:00.000Z").getTime();
+}
+
+function getUpcomingClassItems(
+  assignments: ScheduleItem[],
+  events: ScheduleItem[],
+): UpcomingClassItem[] {
+  const now = Date.now();
+  const items: UpcomingClassItem[] = [
+    ...assignments.map((assignment) => ({
+      ...assignment,
+      kind: "Assignment" as const,
+    })),
+    ...events.map((event) => ({
+      ...event,
+      kind: "Event" as const,
+    })),
+  ];
+
+  const upcoming = items
+    .filter((item) => !item.dueAt || getScheduleTime(item) >= now)
+    .sort((left, right) => getScheduleTime(left) - getScheduleTime(right));
+
+  return (upcoming.length > 0 ? upcoming : items.sort(
+    (left, right) => getScheduleTime(right) - getScheduleTime(left),
+  )).slice(0, 6);
 }
 
 export default async function ClassDetailPage(props: {
@@ -65,6 +105,7 @@ export default async function ClassDetailPage(props: {
     .from(note)
     .where(and(eq(note.userId, session.user.id), eq(note.classId, preview.course.id)))
     .orderBy(desc(note.updatedAt));
+  const upcomingClassItems = getUpcomingClassItems(preview.assignments, preview.events);
 
   const tabLinkClass = (tab: ClassTab) =>
     currentTab === tab
@@ -110,7 +151,7 @@ export default async function ClassDetailPage(props: {
       </div>
 
       {currentTab === "overview" ? (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px]">
           <Card>
             <CardHeader>
               <CardTitle>Class information</CardTitle>
@@ -158,6 +199,55 @@ export default async function ClassDetailPage(props: {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming work</CardTitle>
+              <CardDescription>Next deadlines and class events from this syllabus.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {upcomingClassItems.length > 0 ? (
+                upcomingClassItems.map((item) => (
+                  <div
+                    key={`${item.kind}-${item.id}`}
+                    className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-4 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <Badge variant={item.kind === "Assignment" ? "accent" : "outline"}>
+                            {item.kind}
+                          </Badge>
+                          <Badge variant="outline">{item.category}</Badge>
+                        </div>
+                        <p className="line-clamp-2 text-sm font-medium text-foreground">
+                          {item.title}
+                        </p>
+                        {item.timeText ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.timeText}
+                          </p>
+                        ) : null}
+                      </div>
+                      <Badge variant="neutral">
+                        {formatDate(item.dueAt, item.dateText)}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No upcoming work parsed yet.
+                </p>
+              )}
+              <Link
+                href={`/classes/${runId}?tab=schedule`}
+                className={getButtonClassName("outline", "sm", "w-full justify-center")}
+              >
+                View full schedule
+              </Link>
             </CardContent>
           </Card>
         </div>

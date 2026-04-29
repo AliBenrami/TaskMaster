@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+import { useSidebarBehavior } from "./sidebar-preference";
 
 type AppShellProps = {
   children: ReactNode;
@@ -13,15 +14,21 @@ type AppShellProps = {
 
 export function AppShell({ children, displayName }: AppShellProps) {
   const pathname = usePathname();
+  const sidebarBehavior = useSidebarBehavior();
   const [collapsed, setCollapsed] = useState(false);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const hoverMode = sidebarBehavior === "hover";
+  const sidebarCollapsed = hoverMode ? !hoverExpanded : collapsed;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <AppSidebar
         pathname={pathname}
         displayName={displayName}
-        collapsed={collapsed}
+        behavior={sidebarBehavior}
+        collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setCollapsed((current) => !current)}
+        onHoverChange={setHoverExpanded}
       />
       <div className="min-w-0 flex-1">
         <AppTopbar pathname={pathname} />

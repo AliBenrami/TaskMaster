@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getButtonClassName } from "@/components/ui/button";
@@ -31,7 +31,52 @@ type CalendarDay = {
   isToday: boolean;
 };
 
+type ClassColor = {
+  chip: string;
+  count: string;
+  row: string;
+  stripe: string;
+};
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const CLASS_COLOR_PALETTE: ClassColor[] = [
+  {
+    chip: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/70 dark:bg-sky-950/40 dark:text-sky-200",
+    count: "bg-sky-50 text-sky-800 shadow-[inset_0_0_0_1px_rgb(186_230_253)] dark:bg-sky-950/40 dark:text-sky-200 dark:shadow-[inset_0_0_0_1px_rgb(12_74_110)]",
+    row: "border-sky-200 bg-sky-50/70 dark:border-sky-900/70 dark:bg-sky-950/30",
+    stripe: "bg-sky-500",
+  },
+  {
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-200",
+    count: "bg-emerald-50 text-emerald-800 shadow-[inset_0_0_0_1px_rgb(167_243_208)] dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_0_0_1px_rgb(6_78_59)]",
+    row: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/30",
+    stripe: "bg-emerald-500",
+  },
+  {
+    chip: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200",
+    count: "bg-amber-50 text-amber-900 shadow-[inset_0_0_0_1px_rgb(253_230_138)] dark:bg-amber-950/40 dark:text-amber-200 dark:shadow-[inset_0_0_0_1px_rgb(120_53_15)]",
+    row: "border-amber-200 bg-amber-50/70 dark:border-amber-900/70 dark:bg-amber-950/30",
+    stripe: "bg-amber-500",
+  },
+  {
+    chip: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200",
+    count: "bg-rose-50 text-rose-800 shadow-[inset_0_0_0_1px_rgb(254_205_211)] dark:bg-rose-950/40 dark:text-rose-200 dark:shadow-[inset_0_0_0_1px_rgb(136_19_55)]",
+    row: "border-rose-200 bg-rose-50/70 dark:border-rose-900/70 dark:bg-rose-950/30",
+    stripe: "bg-rose-500",
+  },
+  {
+    chip: "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-200",
+    count: "bg-violet-50 text-violet-800 shadow-[inset_0_0_0_1px_rgb(221_214_254)] dark:bg-violet-950/40 dark:text-violet-200 dark:shadow-[inset_0_0_0_1px_rgb(76_29_149)]",
+    row: "border-violet-200 bg-violet-50/70 dark:border-violet-900/70 dark:bg-violet-950/30",
+    stripe: "bg-violet-500",
+  },
+  {
+    chip: "border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-900/70 dark:bg-cyan-950/40 dark:text-cyan-200",
+    count: "bg-cyan-50 text-cyan-800 shadow-[inset_0_0_0_1px_rgb(165_243_252)] dark:bg-cyan-950/40 dark:text-cyan-200 dark:shadow-[inset_0_0_0_1px_rgb(22_78_99)]",
+    row: "border-cyan-200 bg-cyan-50/70 dark:border-cyan-900/70 dark:bg-cyan-950/30",
+    stripe: "bg-cyan-500",
+  },
+];
 const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "long",
   year: "numeric",
@@ -47,6 +92,8 @@ const EVENT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   timeZone: "UTC",
 });
+const RECURRING_EVENT_PATTERN =
+  /\b(recurring|weekly|daily|every|each|lecture|lab|seminar|class meeting|meets?)\b/i;
 
 function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -129,22 +176,125 @@ function getUpcomingEvents(events: CalendarEvent[], todayKey: string) {
     .slice(0, 8);
 }
 
-function EventRow({ event }: { event: CalendarEvent }) {
+function isRecurringEvent(event: CalendarEvent) {
+  return RECURRING_EVENT_PATTERN.test(
+    [event.title, event.category, event.dateText].join(" "),
+  );
+}
+
+function getEventMeta(event: CalendarEvent) {
+  return [
+    formatEventDate(event),
+    event.timeText,
+    event.location,
+  ].filter(Boolean).join(" / ");
+}
+
+function EventRow({
+  event,
+  color,
+  onOpen,
+}: {
+  event: CalendarEvent;
+  color: ClassColor;
+  onOpen: (event: CalendarEvent) => void;
+}) {
   return (
-    <article className="rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-3">
+    <article className={cx("rounded-[var(--radius-lg)] border px-4 py-3", color.row)}>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="accent">{event.courseTitle}</Badge>
+        <span className={cx("rounded-full border px-2 py-0.5 text-[0.7rem] font-semibold", color.chip)}>
+          {event.courseTitle}
+        </span>
         <Badge variant="outline">{event.category}</Badge>
       </div>
-      <h3 className="mt-2 text-sm font-semibold leading-5 text-foreground">
+      <button
+        type="button"
+        onClick={() => onOpen(event)}
+        className="mt-2 block w-full rounded-md text-left text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+      >
         {event.title}
-      </h3>
+      </button>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        {formatEventDate(event)}
-        {event.timeText ? ` / ${event.timeText}` : ""}
-        {event.location ? ` / ${event.location}` : ""}
+        {getEventMeta(event)}
       </p>
     </article>
+  );
+}
+
+function EventDialog({
+  event,
+  color,
+  onClose,
+}: {
+  event: CalendarEvent;
+  color: ClassColor;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/55 px-4"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="calendar-event-title"
+        className="w-full max-w-md rounded-[var(--radius-xl)] border border-border bg-surface p-5 shadow-[var(--shadow-card)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cx("h-2.5 w-2.5 rounded-full", color.stripe)} aria-hidden />
+              <span className={cx("rounded-full border px-2 py-0.5 text-xs font-semibold", color.chip)}>
+                {event.courseTitle}
+              </span>
+              <Badge variant="outline">{event.category}</Badge>
+            </div>
+            <h2
+              id="calendar-event-title"
+              className="mt-3 text-xl font-semibold tracking-tight text-foreground"
+            >
+              {event.title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground transition hover:border-border-strong hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+            aria-label="Close event details"
+          >
+            x
+          </button>
+        </div>
+
+        <dl className="mt-5 grid gap-3 text-sm">
+          <div className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-3 py-2">
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Date
+            </dt>
+            <dd className="mt-1 font-medium text-foreground">{formatEventDate(event)}</dd>
+          </div>
+          {event.timeText ? (
+            <div className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-3 py-2">
+              <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Time
+              </dt>
+              <dd className="mt-1 font-medium text-foreground">{event.timeText}</dd>
+            </div>
+          ) : null}
+          {event.location ? (
+            <div className="rounded-[var(--radius-lg)] border border-border bg-surface-muted px-3 py-2">
+              <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Location
+              </dt>
+              <dd className="mt-1 font-medium text-foreground">{event.location}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </section>
+    </div>
   );
 }
 
@@ -170,13 +320,23 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
   const todayKey = useMemo(() => getLocalDateKey(today), [today]);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(today));
   const [selectedKey, setSelectedKey] = useState(todayKey);
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
+  const [showRecurring, setShowRecurring] = useState(true);
+  const visibleEvents = useMemo(
+    () => (showRecurring ? events : events.filter((event) => !isRecurringEvent(event))),
+    [events, showRecurring],
+  );
+  const recurringEventCount = useMemo(
+    () => events.filter((event) => isRecurringEvent(event)).length,
+    [events],
+  );
   const days = useMemo(
     () => buildCalendarDays(visibleMonth, todayKey),
     [todayKey, visibleMonth],
   );
   const eventsByDate = useMemo(() => {
     const grouped = new Map<string, CalendarEvent[]>();
-    for (const event of events) {
+    for (const event of visibleEvents) {
       const key = getEventDateKey(event);
       if (!key) {
         continue;
@@ -189,13 +349,26 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
       }
     }
     return grouped;
-  }, [events]);
+  }, [visibleEvents]);
   const selectedDay = days.find((day) => day.key === selectedKey);
   const selectedDate = selectedDay?.date ?? today;
   const selectedEvents = eventsByDate.get(selectedKey) ?? [];
   const upcomingEvents = useMemo(
-    () => getUpcomingEvents(events, todayKey),
-    [events, todayKey],
+    () => getUpcomingEvents(visibleEvents, todayKey),
+    [todayKey, visibleEvents],
+  );
+  const colorByCourseId = useMemo(() => {
+    const courseIds = Array.from(new Set(events.map((event) => event.courseId))).sort();
+    return new Map(
+      courseIds.map((courseId, index) => [
+        courseId,
+        CLASS_COLOR_PALETTE[index % CLASS_COLOR_PALETTE.length],
+      ]),
+    );
+  }, [events]);
+  const activeEvent = useMemo(
+    () => events.find((event) => event.id === activeEventId) ?? null,
+    [activeEventId, events],
   );
   const eventsThisMonth = days.reduce(
     (count, day) =>
@@ -208,6 +381,33 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
     setVisibleMonth(next);
     setSelectedKey(getLocalDateKey(next));
   }
+
+  function getClassColor(courseId: string) {
+    return colorByCourseId.get(courseId) ?? CLASS_COLOR_PALETTE[0];
+  }
+
+  function openEvent(event: CalendarEvent) {
+    const eventKey = getEventDateKey(event);
+    if (eventKey) {
+      setSelectedKey(eventKey);
+    }
+    setActiveEventId(event.id);
+  }
+
+  useEffect(() => {
+    if (!activeEventId) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveEventId(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeEventId]);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -224,6 +424,20 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-muted-foreground transition hover:border-border-strong hover:text-foreground">
+                <input
+                  type="checkbox"
+                  checked={showRecurring}
+                  onChange={(event) => setShowRecurring(event.currentTarget.checked)}
+                  className="h-3.5 w-3.5 accent-current"
+                />
+                Recurring
+                {recurringEventCount > 0 ? (
+                  <span className="text-xs text-muted-foreground">
+                    {recurringEventCount}
+                  </span>
+                ) : null}
+              </label>
               <button
                 type="button"
                 onClick={() => moveVisibleMonth(-1)}
@@ -271,20 +485,22 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
               const selected = selectedKey === day.key;
 
               return (
-                <button
+                <div
                   key={day.key}
-                  type="button"
-                  onClick={() => setSelectedKey(day.key)}
                   className={cx(
-                    "min-h-[7.4rem] border-b border-border p-2 text-left transition focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+                    "min-h-[7.4rem] border-b border-border p-2 transition",
                     index % 7 !== 6 && "border-r",
                     !day.isCurrentMonth && "bg-surface-muted/35 text-muted-foreground",
                     selected && "bg-accent-soft",
                   )}
-                  aria-pressed={selected}
-                  aria-label={`${formatLongDate(day.date)}, ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKey(day.key)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+                    aria-pressed={selected}
+                    aria-label={`${formatLongDate(day.date)}, ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`}
+                  >
                     <span
                       className={cx(
                         "inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium",
@@ -297,20 +513,25 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
                       {day.dayNumber}
                     </span>
                     {dayEvents.length > 0 ? (
-                      <span className="rounded-full bg-surface px-2 py-0.5 text-[0.68rem] font-semibold text-accent shadow-[inset_0_0_0_1px_var(--border)]">
+                      <span className={cx("rounded-full px-2 py-0.5 text-[0.68rem] font-semibold", getClassColor(dayEvents[0].courseId).count)}>
                         {dayEvents.length}
                       </span>
                     ) : null}
-                  </div>
+                  </button>
 
                   <div className="mt-3 space-y-1">
                     {dayEvents.slice(0, 2).map((event) => (
-                      <div
+                      <button
                         key={event.id}
-                        className="truncate rounded-md bg-surface px-2 py-1 text-[0.72rem] font-medium text-foreground shadow-[inset_0_0_0_1px_var(--border)]"
+                        type="button"
+                        onClick={() => openEvent(event)}
+                        className={cx(
+                          "block w-full truncate rounded-md border px-2 py-1 text-left text-[0.72rem] font-medium transition hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+                          getClassColor(event.courseId).chip,
+                        )}
                       >
                         {event.title}
-                      </div>
+                      </button>
                     ))}
                     {dayEvents.length > 2 ? (
                       <div className="px-2 text-[0.7rem] font-medium text-muted-foreground">
@@ -318,7 +539,7 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
                       </div>
                     ) : null}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -328,7 +549,7 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
               {eventsThisMonth} event{eventsThisMonth === 1 ? "" : "s"} this month
             </span>
             <span>
-              {events.length} total parsed event{events.length === 1 ? "" : "s"}
+              {visibleEvents.length} visible of {events.length} parsed event{events.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
@@ -345,7 +566,14 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
 
           <div className="mt-4 space-y-3">
             {selectedEvents.length > 0 ? (
-              selectedEvents.map((event) => <EventRow key={event.id} event={event} />)
+              selectedEvents.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  color={getClassColor(event.courseId)}
+                  onOpen={openEvent}
+                />
+              ))
             ) : (
               <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-surface-muted px-4 py-6 text-sm leading-6 text-muted-foreground">
                 No parsed syllabus events are scheduled for this date.
@@ -373,7 +601,14 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
 
           <div className="mt-4 space-y-3">
             {upcomingEvents.length > 0 ? (
-              upcomingEvents.map((event) => <EventRow key={event.id} event={event} />)
+              upcomingEvents.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  color={getClassColor(event.courseId)}
+                  onOpen={openEvent}
+                />
+              ))
             ) : (
               <div className="rounded-[var(--radius-lg)] border border-dashed border-border bg-surface-muted px-4 py-6">
                 <p className="text-sm font-medium text-foreground">
@@ -387,6 +622,13 @@ export function CalendarClient({ events, initialDate }: CalendarClientProps) {
           </div>
         </section>
       </aside>
+      {activeEvent ? (
+        <EventDialog
+          event={activeEvent}
+          color={getClassColor(activeEvent.courseId)}
+          onClose={() => setActiveEventId(null)}
+        />
+      ) : null}
     </div>
   );
 }
