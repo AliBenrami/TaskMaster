@@ -26,6 +26,7 @@ export default async function NotesPage(props: { searchParams?: SearchParams }) 
       fileName: note.fileName,
       mimeType: note.mimeType,
       fileSize: note.fileSize,
+      embedding: note.embedding,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
     })

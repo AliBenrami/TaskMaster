@@ -14,6 +14,7 @@ import { cx } from "@/lib/utils";
 import {
   noteRecordToWorkspaceNote,
   sortWorkspaceNotes,
+  type NoteGenerationMetadata,
   type NoteRecord,
   type WorkspaceNote,
 } from "@/lib/notes/records";
@@ -33,6 +34,17 @@ type NotesWorkspaceProps = {
   initialClassId: string | null;
   shouldCreateOnMount: boolean;
   resetHref: string;
+};
+
+type GenerationResult = {
+  fileName: string;
+  parsedTextLength: number;
+  topics: Array<{
+    noteId: string;
+    title: string;
+    markdown: string;
+    embedding: number[];
+  }>;
 };
 
 const TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -68,6 +80,18 @@ function getClassFilterId(selectedFilter: string) {
   return selectedFilter;
 }
 
+function formatVectorPreview(values: number[]) {
+  return values.slice(0, 8).map((value) => value.toFixed(4)).join(", ");
+}
+
+function getVectorMagnitude(values: number[]) {
+  return Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+}
+
+function formatFullVector(values: number[]) {
+  return `[${values.map((value) => Number(value.toFixed(8))).join(", ")}]`;
+}
+
 export function NotesWorkspace({
   initialNotes,
   classes,
@@ -85,6 +109,7 @@ export function NotesWorkspace({
   }));
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasHandledCreateOnMountRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -128,6 +153,15 @@ export function NotesWorkspace({
     );
   }
 
+  function mergeNotes(nextNotes: WorkspaceNote[]) {
+    setNotes((current) =>
+      sortWorkspaceNotes([
+        ...nextNotes,
+        ...current.filter((note) => !nextNotes.some((nextNote) => nextNote.id === note.id)),
+      ]),
+    );
+  }
+
   async function saveNote(
     noteId: string,
     patch: { title?: string; content?: NoteContent; classId?: string | null },
@@ -158,6 +192,7 @@ export function NotesWorkspace({
   async function handleCreateNote(classId?: string | null, silent = false) {
     setError(null);
     setStatus("Creating a new note...");
+    setGenerationResult(null);
 
     const response = await fetch("/api/notes", {
       method: "POST",
@@ -188,9 +223,7 @@ export function NotesWorkspace({
   }
 
   const createNoteFromCurrentFilter = useEffectEvent((silent: boolean) => {
-    startTransition(
-      () => void handleCreateNote(getClassFilterId(selectedFilter), silent),
-    );
+    startTransition(() => void handleCreateNote(getClassFilterId(selectedFilter), silent));
   });
 
   useEffect(() => {
@@ -214,6 +247,7 @@ export function NotesWorkspace({
 
     setError(null);
     setStatus("Deleting note...");
+    setGenerationResult(null);
 
     const response = await fetch(`/api/notes/${selectedNote.id}`, {
       method: "DELETE",
@@ -232,7 +266,8 @@ export function NotesWorkspace({
 
   async function handleUploadFile(file: File, classId?: string | null) {
     setError(null);
-    setStatus(`Uploading ${file.name}...`);
+    setGenerationResult(null);
+    setStatus(`Generating notes from ${file.name}...`);
 
     const formData = new FormData();
     formData.set("file", file);
@@ -246,10 +281,42 @@ export function NotesWorkspace({
       body: formData,
     });
 
-    const createdNote = await readNoteRecord(response);
-    mergeNote(createdNote);
-    setSelectedId(createdNote.id);
-    setStatus(`Imported ${file.name}.`);
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          notes?: NoteRecord[];
+          parsedTextLength?: number;
+          topics?: Array<{
+            noteId?: string;
+            title?: string;
+            markdown?: string;
+            embedding?: number[];
+          }>;
+          error?: string;
+        }
+      | null;
+
+    if (!response.ok) {
+      throw new Error(payload?.error || "Could not generate notes from the uploaded file.");
+    }
+
+    const createdNotes = (payload?.notes ?? []).map((record) => noteRecordToWorkspaceNote(record));
+    if (createdNotes.length === 0) {
+      throw new Error("The note generation pipeline completed without returning notes.");
+    }
+
+    mergeNotes(createdNotes);
+    setSelectedId(createdNotes[0].id);
+    setGenerationResult({
+      fileName: file.name,
+      parsedTextLength: payload?.parsedTextLength ?? 0,
+      topics: (payload?.topics ?? []).map((topic, index) => ({
+        noteId: topic.noteId || createdNotes[index]?.id || "",
+        title: topic.title || createdNotes[index]?.title || "Generated Topic",
+        markdown: topic.markdown || createdNotes[index]?.content.markdown || "",
+        embedding: Array.isArray(topic.embedding) ? topic.embedding : [],
+      })),
+    });
+    setStatus(`Generated ${createdNotes.length} topic note${createdNotes.length === 1 ? "" : "s"} from ${file.name}.`);
   }
 
   async function handleTitleCommit() {
@@ -294,7 +361,7 @@ export function NotesWorkspace({
               onClick={() => fileInputRef.current?.click()}
               disabled={isPending}
             >
-              Import file
+              Generate from file
             </Button>
             <input
               ref={fileInputRef}
@@ -307,7 +374,16 @@ export function NotesWorkspace({
                 if (!file) {
                   return;
                 }
-                startTransition(() => void handleUploadFile(file, getClassFilterId(selectedFilter)));
+                startTransition(() => {
+                  void handleUploadFile(file, getClassFilterId(selectedFilter)).catch((uploadError) => {
+                    setError(
+                      uploadError instanceof Error
+                        ? uploadError.message
+                        : "Could not generate notes from the uploaded file.",
+                    );
+                    setStatus(null);
+                  });
+                });
               }}
             />
           </>
@@ -378,7 +454,7 @@ export function NotesWorkspace({
               title="No notes here yet"
               description={
                 selectedFilter === "all"
-                  ? "Create a note or import a file to start building your notes library."
+                  ? "Create a note or generate notes from a file to start building your notes library."
                   : "Create or move a note into this class to start building its study context."
               }
               eyebrow="Notes"
@@ -425,6 +501,11 @@ export function NotesWorkspace({
                           </Badge>
                           {linkedClass ? <Badge variant="accent">{linkedClass.title}</Badge> : null}
                         </div>
+                        {note.generation ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Topic {note.generation.topicIndex + 1}/{note.generation.topicCount}
+                          </p>
+                        ) : null}
                       </div>
                       {note.fileName ? (
                         <Badge variant="neutral">
@@ -484,6 +565,11 @@ export function NotesWorkspace({
                             {selectedNote.fileSize ? ` - ${formatFileSize(selectedNote.fileSize)}` : ""}
                           </Badge>
                         ) : null}
+                        {selectedNote.generation ? (
+                          <Badge variant="outline">
+                            {selectedNote.generation.embeddingDimensions}D embedding
+                          </Badge>
+                        ) : null}
                       </div>
                       <Select
                         aria-label="Select class"
@@ -521,6 +607,9 @@ export function NotesWorkspace({
               </div>
 
               <div className="px-3 pb-3 pt-1 md:px-4 md:pb-4">
+                {selectedNote.generation ? (
+                  <GeneratedNoteVectorPanel generation={selectedNote.generation} />
+                ) : null}
                 <NoteSurface
                   initialDocument={selectedNote.content.document}
                   keepEditingWhenEmpty
@@ -561,7 +650,7 @@ export function NotesWorkspace({
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isPending}
                     >
-                      Import file
+                      Generate from file
                     </Button>
                   </div>
                 }
@@ -583,6 +672,79 @@ export function NotesWorkspace({
           . New notes and imports will link to this class by default.
         </div>
       ) : null}
+
+      {generationResult ? <GenerationResultPanel result={generationResult} /> : null}
     </div>
+  );
+}
+
+function GeneratedNoteVectorPanel({ generation }: { generation: NoteGenerationMetadata }) {
+  return (
+    <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">
+          Generated topic {generation.topicIndex + 1}/{generation.topicCount}: {generation.topicTitle}
+        </p>
+        <p className="text-xs text-emerald-700 dark:text-emerald-300">
+          L2 {getVectorMagnitude(generation.embedding).toFixed(4)} · {generation.embedding.length} values
+        </p>
+      </div>
+      <p className="mt-2 break-all font-mono text-xs text-emerald-800 dark:text-emerald-200">
+        [{formatVectorPreview(generation.embedding)}
+        {generation.embedding.length > 8 ? ", ..." : ""}]
+      </p>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-emerald-800 dark:text-emerald-200">
+          Full vector
+        </summary>
+        <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl bg-white/70 p-3 text-xs text-emerald-950 dark:bg-zinc-950/70 dark:text-emerald-100">
+          {formatFullVector(generation.embedding)}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
+function GenerationResultPanel({ result }: { result: GenerationResult }) {
+  return (
+    <section className="rounded-3xl border border-border bg-surface-muted p-5 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">Generated notes</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {result.fileName} · {result.parsedTextLength.toLocaleString()} parsed characters ·{" "}
+            {result.topics.length} topic notes
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {result.topics.map((topic, index) => (
+          <article key={`${topic.noteId}-${index}`} className="rounded-2xl border border-border bg-surface p-4">
+            <h3 className="line-clamp-2 text-sm font-semibold text-foreground">{topic.title}</h3>
+            <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+              {topic.markdown}
+            </p>
+            <div className="mt-3 rounded-xl bg-surface-muted p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{topic.embedding.length}D L2-normalized vector</span>
+                <span>magnitude {getVectorMagnitude(topic.embedding).toFixed(4)}</span>
+              </div>
+              <p className="mt-2 break-all font-mono text-xs text-foreground">
+                [{formatVectorPreview(topic.embedding)}
+                {topic.embedding.length > 8 ? ", ..." : ""}]
+              </p>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  Full vector
+                </summary>
+                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-surface p-2 text-xs text-foreground">
+                  {formatFullVector(topic.embedding)}
+                </pre>
+              </details>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }

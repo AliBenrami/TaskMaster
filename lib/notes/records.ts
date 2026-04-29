@@ -12,8 +12,21 @@ export type NoteRecord = {
   fileName: string | null;
   mimeType: string | null;
   fileSize: number | null;
+  embedding?: number[] | null;
   createdAt: string | Date;
   updatedAt: string | Date;
+};
+
+export type NoteGenerationMetadata = {
+  fileName: string;
+  sourceTitle: string;
+  topicTitle: string;
+  topicIndex: number;
+  topicCount: number;
+  markdown: string;
+  embedding: number[];
+  embeddingDimensions: number;
+  embeddingModel?: string;
 };
 
 export type WorkspaceNote = {
@@ -24,9 +37,11 @@ export type WorkspaceNote = {
   fileName: string | null;
   mimeType: string | null;
   fileSize: number | null;
+  embedding: number[] | null;
   createdAt: string;
   updatedAt: string;
   content: NoteContent;
+  generation: NoteGenerationMetadata | null;
 };
 
 function createEmptyDocument(): NoteDocument {
@@ -53,8 +68,59 @@ export function normalizeNoteDocument(value: unknown): NoteDocument {
   return parsed.data;
 }
 
+function normalizeEmbedding(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value.filter((item): item is number => typeof item === "number");
+}
+
+function normalizeNoteGeneration(value: unknown, noteEmbedding: number[] | null): NoteGenerationMetadata | null {
+  if (!value || typeof value !== "object" || !("noteGeneration" in value)) {
+    return null;
+  }
+
+  const metadata = (value as { noteGeneration?: unknown }).noteGeneration;
+  if (!metadata || typeof metadata !== "object") {
+    return null;
+  }
+
+  const candidate = metadata as Partial<NoteGenerationMetadata>;
+  if (
+    typeof candidate.fileName !== "string" ||
+    typeof candidate.sourceTitle !== "string" ||
+    typeof candidate.topicTitle !== "string" ||
+    typeof candidate.topicIndex !== "number" ||
+    typeof candidate.topicCount !== "number" ||
+    typeof candidate.markdown !== "string" ||
+    !Array.isArray(candidate.embedding)
+  ) {
+    return null;
+  }
+
+  const embedding = noteEmbedding ?? normalizeEmbedding(candidate.embedding) ?? [];
+
+  return {
+    fileName: candidate.fileName,
+    sourceTitle: candidate.sourceTitle,
+    topicTitle: candidate.topicTitle,
+    topicIndex: candidate.topicIndex,
+    topicCount: candidate.topicCount,
+    markdown: candidate.markdown,
+    embedding,
+    embeddingDimensions:
+      typeof candidate.embeddingDimensions === "number"
+        ? candidate.embeddingDimensions
+        : embedding.length,
+    embeddingModel:
+      typeof candidate.embeddingModel === "string" ? candidate.embeddingModel : undefined,
+  };
+}
+
 export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
   const document = normalizeNoteDocument(record.content);
+  const embedding = normalizeEmbedding(record.embedding);
 
   return {
     id: record.id,
@@ -64,9 +130,11 @@ export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
     fileName: record.fileName,
     mimeType: record.mimeType,
     fileSize: record.fileSize,
+    embedding,
     createdAt: normalizeDate(record.createdAt),
     updatedAt: normalizeDate(record.updatedAt),
     content: createNoteContent(document),
+    generation: normalizeNoteGeneration(record.content, embedding),
   };
 }
 
@@ -75,4 +143,3 @@ export function sortWorkspaceNotes(notes: WorkspaceNote[]) {
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
 }
-

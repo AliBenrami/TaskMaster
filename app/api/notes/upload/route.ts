@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { assertClassBelongsToUser } from "@/lib/classes/queries";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
-import { assertClassBelongsToUser } from "@/lib/classes/queries";
+import { generateTopicNotesFromFile, markdownToNoteDocument } from "@/lib/notes/generation";
 
 export const runtime = "nodejs";
 
@@ -17,9 +17,9 @@ const ALLOWED_MIME_TYPES = new Set([
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-// POST /api/notes/upload - create a note from an uploaded file
+// POST /api/notes/upload — create generated topic notes from an uploaded file
 export async function POST(req: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -62,15 +62,10 @@ export async function POST(req: Request) {
     );
   }
 
-  // Convert to base64 data URL and store in DB
-  //
-  // NOTE: For production, swap this for an upload to Vercel Blob / S3 / R2
-  // and store the returned URL in fileUrl instead.
-  let fileUrl: string;
+  let fileBuffer: Buffer;
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    fileUrl = `data:${file.type};base64,${base64}`;
+    fileBuffer = Buffer.from(arrayBuffer);
   } catch {
     return NextResponse.json(
       { error: "Failed to process uploaded file" },
@@ -94,20 +89,68 @@ export async function POST(req: Request) {
     }
   }
 
-  const [created] = await db
-    .insert(note)
-    .values({
-      userId: session.user.id,
-      title,
-      classId,
-      sourceType: "upload",
-      fileUrl,
+  let generated: Awaited<ReturnType<typeof generateTopicNotesFromFile>>;
+  try {
+    generated = await generateTopicNotesFromFile({
+      fileBuffer,
       fileName: file.name,
       mimeType: file.type,
-      fileSize: file.size,
-      content: null, // future OCR/parse step can populate this
-    })
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate notes from the uploaded file.",
+      },
+      { status: 502 },
+    );
+  }
+
+  const created = await db
+    .insert(note)
+    .values(
+      generated.topics.map((topic, index) => ({
+        userId: session.user.id,
+        title:
+          generated.topics.length === 1 ? title : `${title} - ${topic.title}`,
+        classId,
+        sourceType: "upload" as const,
+        fileName: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        embedding: topic.embedding,
+        content: {
+          ...markdownToNoteDocument(topic.markdown),
+          noteGeneration: {
+            fileName: file.name,
+            sourceTitle: title,
+            topicTitle: topic.title,
+            topicIndex: index,
+            topicCount: generated.topics.length,
+            markdown: topic.markdown,
+            embedding: topic.embedding,
+            embeddingDimensions: topic.embedding.length,
+            embeddingModel: process.env.GEMINI_EMBEDDINGS_MODEL,
+          },
+        },
+      })),
+    )
     .returning();
 
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json(
+    {
+      notes: created,
+      parsedTextLength: generated.parsedText.length,
+      markdown: generated.markdown,
+      topics: generated.topics.map((topic, index) => ({
+        noteId: created[index]?.id,
+        title: topic.title,
+        markdown: topic.markdown,
+        embedding: topic.embedding,
+      })),
+    },
+    { status: 201 },
+  );
 }
