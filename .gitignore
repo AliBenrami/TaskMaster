@@ -44,3 +44,6 @@ next-env.d.ts
 .playwright-cli
 .codex-artifacts
 .codex
+
+# local AskHamiz audio files are not committed
+public/askhamiz/audio/

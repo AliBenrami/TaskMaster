@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { AskHamizWidget } from "@/components/askhamiz/askhamiz-widget";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
 
@@ -29,6 +30,7 @@ export function AppShell({ children, displayName }: AppShellProps) {
           {children}
         </main>
       </div>
+      <AskHamizWidget />
     </div>
   );
 }
