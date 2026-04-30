@@ -31,9 +31,6 @@ export const auth = betterAuth({
           },
         }
       : undefined,
-  experimental: {
-    joins: true,
-  },
   plugins: [nextCookies()],
   database: drizzleAdapter(db, {
     provider: "pg",
