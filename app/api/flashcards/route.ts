@@ -16,18 +16,15 @@ const createFlashcardsSchema = z.object({
   cardCount: z.number().int().min(4).max(40),
 });
 
-function normalizeCards(value: unknown): FlashcardItem[] {
-  const parsed = z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        front: z.string().min(1),
-        back: z.string().min(1),
-        sourceNoteTitles: z.array(z.string().min(1)).min(1),
-      }),
-    )
-    .safeParse(value);
+const flashcardItemSchema = z.object({
+  id: z.string().min(1),
+  front: z.string().min(1),
+  back: z.string().min(1),
+  sourceNoteTitles: z.array(z.string().min(1)).min(1),
+});
 
+function normalizeCards(value: unknown): FlashcardItem[] {
+  const parsed = z.array(flashcardItemSchema).safeParse(value);
   return parsed.success ? parsed.data : [];
 }
 
