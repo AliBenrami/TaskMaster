@@ -1,9 +1,22 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type EditorJS from "@editorjs/editorjs";
 import type { BlockToolConstructable } from "@editorjs/editorjs";
-import type { NoteContent, NoteDocument, NoteImageFileData } from "@/lib/notes/types";
+import type {
+  NoteBlock,
+  NoteBlockType,
+  NoteContent,
+  NoteDocument,
+  NoteImageFileData,
+} from "@/lib/notes/types";
 import { emptyNoteDocument, NoteDocumentSchema } from "@/lib/notes/types";
 import { createNoteContent } from "@/lib/notes/markdown";
 import { CodeBlockTool } from "@/components/note-editor/code-block-tool";
@@ -15,12 +28,304 @@ export type NoteEditorProps = {
   onSave?: (content: NoteContent) => Promise<void>;
   uploadImage?: (file: File) => Promise<NoteImageFileData>;
   readOnly?: boolean;
+  selectionPrelude?: ReactNode;
 };
 
 const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
+const EMPTY_PARAGRAPH_BLOCK: NoteBlock = {
+  type: "paragraph",
+  data: {
+    text: "",
+  },
+};
+
+type BlockContextMenuState = {
+  x: number;
+  y: number;
+  blockIndex: number;
+  blockType: NoteBlockType;
+};
+
+type SlashCommandMenuState = {
+  x: number;
+  y: number;
+  blockIndex: number;
+  query: string;
+};
+
+type BlockConversionTarget =
+  | { type: "paragraph" }
+  | { type: "header"; level: 1 | 2 | 3 | 4 }
+  | { type: "list"; style: "ordered" | "unordered" | "checklist" }
+  | { type: "quote" }
+  | { type: "code" }
+  | { type: "math" };
+
+type SlashCommand = {
+  id: string;
+  label: string;
+  hint: string;
+  keywords: string[];
+  target: BlockConversionTarget;
+};
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  {
+    id: "text",
+    label: "Text",
+    hint: "Plain text block",
+    keywords: ["paragraph", "plain"],
+    target: { type: "paragraph" },
+  },
+  {
+    id: "h1",
+    label: "Heading 1",
+    hint: "Large section heading",
+    keywords: ["heading", "title", "h1"],
+    target: { type: "header", level: 1 },
+  },
+  {
+    id: "h2",
+    label: "Heading 2",
+    hint: "Medium section heading",
+    keywords: ["heading", "subtitle", "h2"],
+    target: { type: "header", level: 2 },
+  },
+  {
+    id: "h3",
+    label: "Heading 3",
+    hint: "Small section heading",
+    keywords: ["heading", "h3"],
+    target: { type: "header", level: 3 },
+  },
+  {
+    id: "bullet",
+    label: "Bulleted list",
+    hint: "Simple unordered list",
+    keywords: ["list", "ul", "bullet"],
+    target: { type: "list", style: "unordered" },
+  },
+  {
+    id: "number",
+    label: "Numbered list",
+    hint: "Ordered list",
+    keywords: ["list", "ol", "number"],
+    target: { type: "list", style: "ordered" },
+  },
+  {
+    id: "todo",
+    label: "Checklist",
+    hint: "Track tasks",
+    keywords: ["todo", "task", "check"],
+    target: { type: "list", style: "checklist" },
+  },
+  {
+    id: "quote",
+    label: "Quote",
+    hint: "Callout text",
+    keywords: ["blockquote", "callout"],
+    target: { type: "quote" },
+  },
+  {
+    id: "code",
+    label: "Code",
+    hint: "Code block",
+    keywords: ["pre", "snippet"],
+    target: { type: "code" },
+  },
+  {
+    id: "math",
+    label: "Math",
+    hint: "Equation block",
+    keywords: ["equation", "latex"],
+    target: { type: "math" },
+  },
+];
 
 function areDocumentsEqual(left: NoteDocument, right: NoteDocument) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|blockquote|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getBlockText(block: NoteBlock, options?: { plain?: boolean }) {
+  const normalize = options?.plain ? stripHtml : (value: string) => value;
+
+  switch (block.type) {
+    case "paragraph":
+    case "header":
+      return normalize(block.data.text);
+    case "quote":
+      return normalize(block.data.text);
+    case "list":
+      return normalize(block.data.items.map((item) => item.content).join("\n"));
+    case "code":
+      return block.data.code;
+    case "math":
+      return block.data.latex;
+    case "image":
+      return normalize(block.data.caption);
+    default:
+      return "";
+  }
+}
+
+function convertBlock(
+  block: NoteBlock,
+  target: BlockConversionTarget,
+): NoteBlock {
+  const richText = getBlockText(block);
+  const plainText = getBlockText(block, { plain: true });
+
+  switch (target.type) {
+    case "paragraph":
+      return {
+        type: "paragraph",
+        data: {
+          text: richText,
+        },
+      };
+    case "header":
+      return {
+        type: "header",
+        data: {
+          text: richText,
+          level: target.level,
+        },
+      };
+    case "list":
+      return {
+        type: "list",
+        data: {
+          style: target.style,
+          items: plainText
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((item) => ({
+              content: item,
+              meta: target.style === "checklist" ? { checked: false } : {},
+              items: [],
+            })),
+        },
+      };
+    case "quote":
+      return {
+        type: "quote",
+        data: {
+          text: richText,
+          caption: "",
+          alignment: "left",
+        },
+      };
+    case "code":
+      return {
+        type: "code",
+        data: {
+          code: plainText,
+        },
+      };
+    case "math":
+      return {
+        type: "math",
+        data: {
+          latex: plainText,
+        },
+      };
+    default:
+      return block;
+  }
+}
+
+function createEmptyBlockForTarget(target: BlockConversionTarget): NoteBlock {
+  switch (target.type) {
+    case "paragraph":
+      return {
+        type: "paragraph",
+        data: {
+          text: "",
+        },
+      };
+    case "header":
+      return {
+        type: "header",
+        data: {
+          text: "",
+          level: target.level,
+        },
+      };
+    case "list":
+      return {
+        type: "list",
+        data: {
+          style: target.style,
+          items: [
+            {
+              content: "",
+              meta: target.style === "checklist" ? { checked: false } : {},
+              items: [],
+            },
+          ],
+        },
+      };
+    case "quote":
+      return {
+        type: "quote",
+        data: {
+          text: "",
+          caption: "",
+          alignment: "left",
+        },
+      };
+    case "code":
+      return {
+        type: "code",
+        data: {
+          code: "",
+        },
+      };
+    case "math":
+      return {
+        type: "math",
+        data: {
+          latex: "",
+        },
+      };
+    default:
+      return {
+        type: "paragraph",
+        data: {
+          text: "",
+        },
+      };
+  }
+}
+
+function getSlashCommandMatches(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return SLASH_COMMANDS;
+  }
+
+  return SLASH_COMMANDS.filter((command) =>
+    [command.label, command.id, ...command.keywords].some((value) =>
+      value.toLowerCase().includes(normalizedQuery),
+    ),
+  );
 }
 
 async function uploadImageToDataUrl(file: File): Promise<NoteImageFileData> {
@@ -67,13 +372,20 @@ export function NoteEditor({
   onSave,
   uploadImage,
   readOnly = false,
+  selectionPrelude,
 }: NoteEditorProps) {
+  const selectionScopeRef = useRef<HTMLElement | null>(null);
   const holderRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<EditorJS | null>(null);
   const changeTimeoutRef = useRef<number | null>(null);
   const renderedDocumentRef = useRef<NoteDocument>(initialDocument);
   const pendingSaveRef = useRef<NoteContent | null>(null);
   const isFlushingSaveRef = useRef(false);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const [blockContextMenu, setBlockContextMenu] =
+    useState<BlockContextMenuState | null>(null);
+  const [slashCommandMenu, setSlashCommandMenu] =
+    useState<SlashCommandMenuState | null>(null);
 
   const flushPendingSaves = useEffectEvent(async () => {
     if (!onSave || isFlushingSaveRef.current) {
@@ -120,6 +432,52 @@ export function NoteEditor({
     }
   });
 
+  const applyDocumentMutation = useCallback(
+    async (mutate: (document: NoteDocument) => NoteDocument) => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      try {
+        const saved = NoteDocumentSchema.parse(await editor.save());
+        const nextDocument = NoteDocumentSchema.parse(mutate(saved));
+        renderedDocumentRef.current = nextDocument;
+        await editor.render(
+          nextDocument.blocks.length > 0
+            ? nextDocument
+            : { ...emptyNoteDocument },
+        );
+        const content = createNoteContent(nextDocument);
+        onContentChange?.(content);
+
+        if (onSave) {
+          pendingSaveRef.current = content;
+
+          if (!isFlushingSaveRef.current) {
+            isFlushingSaveRef.current = true;
+
+            try {
+              while (pendingSaveRef.current) {
+                const nextContent = pendingSaveRef.current;
+                pendingSaveRef.current = null;
+                await onSave(nextContent);
+              }
+            } finally {
+              isFlushingSaveRef.current = false;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to update note block.", error);
+      } finally {
+        setBlockContextMenu(null);
+        setSlashCommandMenu(null);
+      }
+    },
+    [onContentChange, onSave],
+  );
+
   const resolveImageUpload = useEffectEvent(async (file: File) => {
     const resolvedFile = uploadImage
       ? await uploadImage(file)
@@ -128,6 +486,743 @@ export function NoteEditor({
     return {
       success: 1 as const,
       file: resolvedFile,
+    };
+  });
+
+  const handleConvertBlock = (target: BlockConversionTarget) => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const targetIndex = blockContextMenu.blockIndex;
+    void applyDocumentMutation((document) => ({
+      ...document,
+      blocks: document.blocks.map((block, index) =>
+        index === targetIndex ? convertBlock(block, target) : block,
+      ) as NoteBlock[],
+    }));
+  };
+
+  const handleMoveBlock = (direction: -1 | 1) => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const targetIndex = blockContextMenu.blockIndex;
+    void applyDocumentMutation((document) => {
+      const blocks = [...document.blocks];
+      const nextIndex = targetIndex + direction;
+
+      if (nextIndex < 0 || nextIndex >= blocks.length) {
+        return document;
+      }
+
+      const currentBlock = blocks[targetIndex];
+      const nextBlock = blocks[nextIndex];
+      if (!currentBlock || !nextBlock) {
+        return document;
+      }
+
+      blocks[targetIndex] = nextBlock;
+      blocks[nextIndex] = currentBlock;
+
+      return {
+        ...document,
+        blocks,
+      };
+    });
+  };
+
+  const handleInsertBlockBelow = () => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const targetIndex = blockContextMenu.blockIndex;
+    void applyDocumentMutation((document) => ({
+      ...document,
+      blocks: [
+        ...document.blocks.slice(0, targetIndex + 1),
+        { ...EMPTY_PARAGRAPH_BLOCK, data: { ...EMPTY_PARAGRAPH_BLOCK.data } },
+        ...document.blocks.slice(targetIndex + 1),
+      ] as NoteBlock[],
+    }));
+  };
+
+  const handleDeleteBlock = () => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const targetIndex = blockContextMenu.blockIndex;
+    void applyDocumentMutation((document) => ({
+      ...document,
+      blocks: document.blocks.filter(
+        (_, index) => index !== targetIndex,
+      ) as NoteBlock[],
+    }));
+  };
+
+  const handleSlashCommand = useCallback((command: SlashCommand) => {
+    if (!slashCommandMenu) {
+      return;
+    }
+
+    const targetIndex = slashCommandMenu.blockIndex;
+    void applyDocumentMutation((document) => ({
+      ...document,
+      blocks: document.blocks.map((block, index) =>
+        index === targetIndex
+          ? getBlockText(block, { plain: true }).startsWith("/")
+            ? createEmptyBlockForTarget(command.target)
+            : convertBlock(block, command.target)
+          : block,
+      ) as NoteBlock[],
+    }));
+  }, [applyDocumentMutation, slashCommandMenu]);
+
+  const installBlockSurfaceDragging = useEffectEvent((editor: EditorJS) => {
+    if (readOnly || !holderRef.current || !selectionScopeRef.current) {
+      return () => undefined;
+    }
+
+    const holder = holderRef.current;
+    const selectionScope = selectionScopeRef.current;
+    const dragThreshold = 8;
+    let candidateBlock: HTMLElement | null = null;
+    let pressedBlock: HTMLElement | null = null;
+    let isDraggingBlocks = false;
+    let isSelectingBlocks = false;
+    let dropIndex: number | null = null;
+    let selectedBlocks = new Set<HTMLElement>();
+    let pointerMode: "pointer" | "mouse" | null = null;
+    let selectionBox: HTMLDivElement | null = null;
+    let dropIndicator: HTMLDivElement | null = null;
+    let dragPreview: HTMLDivElement | null = null;
+    let dragPreviewPointerOffsetX = 0;
+    let dragPreviewPointerOffsetY = 0;
+    let selectedGroupHeight = 0;
+    let dragLayout: Array<{
+      block: HTMLElement;
+      height: number;
+      index: number;
+      top: number;
+    }> = [];
+    let startX = 0;
+    let startY = 0;
+
+    const getBlocks = () =>
+      Array.from(holder.querySelectorAll<HTMLElement>(".ce-block"));
+    const clearDropIndicator = () => {
+      dropIndex = null;
+      dropIndicator?.remove();
+      dropIndicator = null;
+    };
+
+    const removeDragPreview = () => {
+      dragPreview?.remove();
+      dragPreview = null;
+    };
+
+    const clearReflowTransforms = () => {
+      getBlocks().forEach((block) => {
+        block.style.removeProperty("transform");
+      });
+    };
+
+    const syncSelectionClasses = () => {
+      getBlocks().forEach((block) => {
+        block.classList.toggle(
+          "note-editor__block-selected",
+          selectedBlocks.has(block),
+        );
+        block.classList.toggle(
+          "note-editor__block-dragging",
+          isDraggingBlocks && selectedBlocks.has(block),
+        );
+      });
+    };
+
+    const setSelectedBlocks = (blocks: HTMLElement[]) => {
+      window.getSelection()?.removeAllRanges();
+      selectedBlocks = new Set(blocks);
+      syncSelectionClasses();
+    };
+
+    const clearSelection = () => {
+      selectedBlocks = new Set();
+      syncSelectionClasses();
+    };
+
+    const removeSelectionBox = () => {
+      selectionBox?.remove();
+      selectionBox = null;
+    };
+
+    const isEditorControlTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      !target.closest("[data-note-selection-region]") &&
+      Boolean(
+        target.closest(
+          [
+            "button",
+            "input",
+            "textarea",
+            "select",
+            "math-field",
+            ".ce-toolbar",
+            ".ce-popover",
+            ".ce-inline-toolbar",
+            ".ce-conversion-toolbar",
+            ".ce-settings",
+            ".ce-toolbox",
+            ".ML__keyboard",
+            ".MLK__backdrop",
+            ".MLK__plate",
+            ".MLK__layer",
+          ].join(", "),
+        ),
+      );
+
+    const isContextMenuControlTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        target.closest(
+          [
+            ".ce-toolbar",
+            ".ce-popover",
+            ".ce-inline-toolbar",
+            ".ce-conversion-toolbar",
+            ".ce-settings",
+            ".ce-toolbox",
+            ".ML__keyboard",
+            ".MLK__backdrop",
+            ".MLK__plate",
+            ".MLK__layer",
+          ].join(", "),
+        ),
+      );
+
+    const getDropIndexFromPoint = (clientY: number) => {
+      if (dragLayout.length === 0) {
+        return null;
+      }
+
+      let nextDropIndex = dragLayout.length;
+      for (const item of dragLayout) {
+        if (clientY < item.top + item.height / 2) {
+          nextDropIndex = item.index;
+          break;
+        }
+      }
+
+      return nextDropIndex;
+    };
+
+    const setDropPlaceholderTop = (top: number) => {
+      dropIndicator ??= document.createElement("div");
+      dropIndicator.className = "note-editor__drop-placeholder";
+
+      if (!dropIndicator.parentElement) {
+        holder.append(dropIndicator);
+      }
+
+      const holderRect = holder.getBoundingClientRect();
+      dropIndicator.style.top = `${top - holderRect.top + holder.scrollTop}px`;
+      dropIndicator.style.height = `${Math.max(selectedGroupHeight, 36)}px`;
+    };
+
+    const applyDynamicReflow = (clientY: number) => {
+      const nextDropIndex = getDropIndexFromPoint(clientY);
+      if (nextDropIndex === null) {
+        clearDropIndicator();
+        return;
+      }
+
+      dropIndex = nextDropIndex;
+      const selectedIndexes = dragLayout
+        .filter((item) => selectedBlocks.has(item.block))
+        .map((item) => item.index);
+
+      if (selectedIndexes.length === 0) {
+        clearDropIndicator();
+        return;
+      }
+
+      const selectedIndexSet = new Set(selectedIndexes);
+      const removedBeforeDrop = selectedIndexes.filter(
+        (index) => index < nextDropIndex,
+      ).length;
+      const adjustedDropIndex = Math.max(0, nextDropIndex - removedBeforeDrop);
+      const remaining = dragLayout.filter(
+        (item) => !selectedIndexSet.has(item.index),
+      );
+      const selected = dragLayout.filter((item) =>
+        selectedIndexSet.has(item.index),
+      );
+      const visualOrder = [
+        ...remaining.slice(0, adjustedDropIndex),
+        ...selected,
+        ...remaining.slice(adjustedDropIndex),
+      ];
+
+      let nextTop = dragLayout[0]?.top ?? 0;
+      let placeholderTop = nextTop;
+      const firstSelected = selected[0];
+      const visualTops = new Map<HTMLElement, number>();
+
+      for (const item of visualOrder) {
+        if (firstSelected && item.block === firstSelected.block) {
+          placeholderTop = nextTop;
+        }
+
+        visualTops.set(item.block, nextTop);
+        nextTop += item.height;
+      }
+
+      dragLayout.forEach((item) => {
+        if (selectedIndexSet.has(item.index)) {
+          item.block.style.removeProperty("transform");
+          return;
+        }
+
+        const visualTop = visualTops.get(item.block);
+        if (visualTop === undefined) {
+          return;
+        }
+
+        item.block.style.transform = `translateY(${visualTop - item.top}px)`;
+      });
+
+      setDropPlaceholderTop(placeholderTop);
+    };
+
+    const resetInteractionState = () => {
+      candidateBlock = null;
+      pressedBlock = null;
+      isDraggingBlocks = false;
+      isSelectingBlocks = false;
+      pointerMode = null;
+      removeSelectionBox();
+      clearDropIndicator();
+      removeDragPreview();
+      clearReflowTransforms();
+      dragLayout = [];
+      syncSelectionClasses();
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    const finishDrag = async () => {
+      const blocks = getBlocks();
+      const selectedIndexes = blocks
+        .map((block, index) => (selectedBlocks.has(block) ? index : -1))
+        .filter((index) => index >= 0);
+
+      if (dropIndex !== null && selectedIndexes.length > 0) {
+        const targetDropIndex = dropIndex;
+        const firstSelectedIndex = selectedIndexes[0];
+        const lastSelectedIndex = selectedIndexes[selectedIndexes.length - 1];
+
+        if (
+          targetDropIndex < firstSelectedIndex ||
+          targetDropIndex > lastSelectedIndex + 1
+        ) {
+          const saved = NoteDocumentSchema.parse(await editor.save());
+          const selectedIndexSet = new Set(selectedIndexes);
+          const movedBlocks = saved.blocks.filter((_, index) =>
+            selectedIndexSet.has(index),
+          );
+          const remainingBlocks = saved.blocks.filter(
+            (_, index) => !selectedIndexSet.has(index),
+          );
+          const removedBeforeDrop = selectedIndexes.filter(
+            (index) => index < targetDropIndex,
+          ).length;
+          const adjustedDropIndex = Math.max(
+            0,
+            targetDropIndex - removedBeforeDrop,
+          );
+          const nextDocument = {
+            ...saved,
+            blocks: [
+              ...remainingBlocks.slice(0, adjustedDropIndex),
+              ...movedBlocks,
+              ...remainingBlocks.slice(adjustedDropIndex),
+            ],
+          };
+
+          renderedDocumentRef.current = nextDocument;
+          await editor.render(nextDocument);
+          window.setTimeout(() => {
+            const nextBlocks = getBlocks();
+            setSelectedBlocks(
+              nextBlocks.slice(
+                adjustedDropIndex,
+                adjustedDropIndex + movedBlocks.length,
+              ),
+            );
+            void emitContentChange();
+          }, 0);
+        }
+      }
+
+      resetInteractionState();
+    };
+
+    const getSelectedBlocksInDocumentOrder = () =>
+      getBlocks().filter((block) => selectedBlocks.has(block));
+
+    const createDragPreview = () => {
+      const selected = getSelectedBlocksInDocumentOrder();
+      if (selected.length === 0) {
+        return;
+      }
+
+      const firstRect = selected[0].getBoundingClientRect();
+      const lastRect = selected[selected.length - 1].getBoundingClientRect();
+      const widestRect = selected.reduce((widest, block) => {
+        const rect = block.getBoundingClientRect();
+        return rect.width > widest.width ? rect : widest;
+      }, firstRect);
+
+      selectedGroupHeight = lastRect.bottom - firstRect.top;
+      dragPreviewPointerOffsetX = startX - widestRect.left;
+      dragPreviewPointerOffsetY = startY - firstRect.top;
+      dragPreview = document.createElement("div");
+      dragPreview.className = "note-editor__drag-preview";
+      dragPreview.style.left = `${startX - dragPreviewPointerOffsetX}px`;
+      dragPreview.style.top = `${startY - dragPreviewPointerOffsetY}px`;
+      dragPreview.style.width = `${widestRect.width}px`;
+
+      selected.forEach((block) => {
+        const clone = block.cloneNode(true);
+        if (clone instanceof HTMLElement) {
+          clone.classList.remove(
+            "note-editor__block-selected",
+            "note-editor__block-dragging",
+          );
+          clone.classList.add("note-editor__drag-preview-block");
+          dragPreview?.append(clone);
+        }
+      });
+
+      document.body.append(dragPreview);
+    };
+
+    const updateDragPreview = (clientX: number, clientY: number) => {
+      if (!dragPreview) {
+        return;
+      }
+
+      dragPreview.style.left = `${clientX - dragPreviewPointerOffsetX}px`;
+      dragPreview.style.top = `${clientY - dragPreviewPointerOffsetY}px`;
+    };
+
+    const updateSelectionBox = (clientX: number, clientY: number) => {
+      if (!selectionBox) {
+        selectionBox = document.createElement("div");
+        selectionBox.className = "note-editor__selection-box";
+        document.body.append(selectionBox);
+      }
+
+      const left = Math.min(startX, clientX);
+      const top = Math.min(startY, clientY);
+      const width = Math.abs(clientX - startX);
+      const height = Math.abs(clientY - startY);
+      selectionBox.style.left = `${left}px`;
+      selectionBox.style.top = `${top}px`;
+      selectionBox.style.width = `${width}px`;
+      selectionBox.style.height = `${height}px`;
+
+      const selectionRect = new DOMRect(left, top, width, height);
+      setSelectedBlocks(
+        getBlocks().filter((block) => {
+          const rect = block.getBoundingClientRect();
+          return (
+            rect.left < selectionRect.right &&
+            rect.right > selectionRect.left &&
+            rect.top < selectionRect.bottom &&
+            rect.bottom > selectionRect.top
+          );
+        }),
+      );
+    };
+
+    const startDrag = (clientY: number) => {
+      if (!candidateBlock || !selectedBlocks.has(candidateBlock)) {
+        return;
+      }
+
+      isDraggingBlocks = true;
+      window.getSelection()?.removeAllRanges();
+      dragLayout = getBlocks().map((block, index) => {
+        const rect = block.getBoundingClientRect();
+        return {
+          block,
+          height: rect.height,
+          index,
+          top: rect.top,
+        };
+      });
+      syncSelectionClasses();
+      createDragPreview();
+      updateDragPreview(startX, startY);
+      applyDynamicReflow(clientY);
+    };
+
+    const startSelectionBox = () => {
+      isSelectingBlocks = true;
+      clearSelection();
+      window.getSelection()?.removeAllRanges();
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (pointerMode !== "pointer") {
+        return;
+      }
+
+      const distance = Math.hypot(
+        event.clientX - startX,
+        event.clientY - startY,
+      );
+      if (!isDraggingBlocks && !isSelectingBlocks && distance < dragThreshold) {
+        return;
+      }
+
+      event.preventDefault();
+      if (!candidateBlock && !isSelectingBlocks) {
+        startSelectionBox();
+      }
+
+      if (isSelectingBlocks) {
+        updateSelectionBox(event.clientX, event.clientY);
+        return;
+      }
+
+      if (!isDraggingBlocks) {
+        startDrag(event.clientY);
+        return;
+      }
+
+      updateDragPreview(event.clientX, event.clientY);
+      applyDynamicReflow(event.clientY);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (pointerMode !== "pointer") {
+        return;
+      }
+
+      if (isDraggingBlocks) {
+        event.preventDefault();
+        void finishDrag();
+        return;
+      }
+
+      if (isSelectingBlocks) {
+        event.preventDefault();
+      } else if (pressedBlock) {
+        if (selectedBlocks.has(pressedBlock)) {
+          event.preventDefault();
+          clearSelection();
+        } else {
+          clearSelection();
+        }
+      } else {
+        clearSelection();
+      }
+
+      resetInteractionState();
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        pointerMode ||
+        event.button !== 0 ||
+        isEditorControlTarget(event.target)
+      ) {
+        return;
+      }
+
+      const block =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".ce-block")
+          : null;
+      const shouldPrepareDrag = block && selectedBlocks.has(block);
+
+      if (block && !shouldPrepareDrag) {
+        clearSelection();
+        return;
+      }
+
+      pointerMode = "pointer";
+      pressedBlock = block;
+      candidateBlock = shouldPrepareDrag ? block : null;
+      startX = event.clientX;
+      startY = event.clientY;
+      if (shouldPrepareDrag) {
+        event.preventDefault();
+      }
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (pointerMode !== "mouse") {
+        return;
+      }
+
+      const distance = Math.hypot(
+        event.clientX - startX,
+        event.clientY - startY,
+      );
+      if (!isDraggingBlocks && !isSelectingBlocks && distance < dragThreshold) {
+        return;
+      }
+
+      event.preventDefault();
+      if (!candidateBlock && !isSelectingBlocks) {
+        startSelectionBox();
+      }
+
+      if (isSelectingBlocks) {
+        updateSelectionBox(event.clientX, event.clientY);
+        return;
+      }
+
+      if (!isDraggingBlocks) {
+        startDrag(event.clientY);
+        return;
+      }
+
+      updateDragPreview(event.clientX, event.clientY);
+      applyDynamicReflow(event.clientY);
+    };
+
+    const handleMouseUp = (event: MouseEvent) => {
+      if (pointerMode !== "mouse") {
+        return;
+      }
+
+      if (isDraggingBlocks) {
+        event.preventDefault();
+        void finishDrag();
+        return;
+      }
+
+      if (isSelectingBlocks) {
+        event.preventDefault();
+      } else if (pressedBlock) {
+        if (selectedBlocks.has(pressedBlock)) {
+          event.preventDefault();
+          clearSelection();
+        } else {
+          clearSelection();
+        }
+      } else {
+        clearSelection();
+      }
+
+      resetInteractionState();
+    };
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        pointerMode ||
+        event.button !== 0 ||
+        isEditorControlTarget(event.target)
+      ) {
+        return;
+      }
+
+      const block =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".ce-block")
+          : null;
+      const shouldPrepareDrag = block && selectedBlocks.has(block);
+
+      if (block && !shouldPrepareDrag) {
+        clearSelection();
+        return;
+      }
+
+      pointerMode = "mouse";
+      pressedBlock = block;
+      candidateBlock = shouldPrepareDrag ? block : null;
+      startX = event.clientX;
+      startY = event.clientY;
+      if (shouldPrepareDrag) {
+        event.preventDefault();
+      }
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const handleContextMenu = (event: MouseEvent) => {
+      if (isContextMenuControlTarget(event.target)) {
+        return;
+      }
+
+      const block =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".ce-block")
+          : null;
+
+      if (!block) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      resetInteractionState();
+
+      void (async () => {
+        try {
+          const blockIndex = getBlocks().indexOf(block);
+          if (blockIndex < 0) {
+            return;
+          }
+
+          const saved = NoteDocumentSchema.parse(await editor.save());
+          const noteBlock = saved.blocks[blockIndex];
+          if (!noteBlock) {
+            return;
+          }
+
+          setBlockContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            blockIndex,
+            blockType: noteBlock.type,
+          });
+        } catch (error) {
+          console.error("Failed to open note block menu.", error);
+        }
+      })();
+    };
+
+    selectionScope.addEventListener("pointerdown", handlePointerDown, true);
+    selectionScope.addEventListener("mousedown", handleMouseDown, true);
+    selectionScope.addEventListener("contextmenu", handleContextMenu, true);
+
+    return () => {
+      selectionScope.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+        true,
+      );
+      selectionScope.removeEventListener("mousedown", handleMouseDown, true);
+      selectionScope.removeEventListener(
+        "contextmenu",
+        handleContextMenu,
+        true,
+      );
+      resetInteractionState();
     };
   });
 
@@ -180,7 +1275,7 @@ export function NoteEditor({
             class: paragraphTool,
             inlineToolbar: true,
             config: {
-              placeholder: "press '/' for commands",
+              placeholder: "Type '/' for commands",
             },
           },
           header: {
@@ -244,6 +1339,10 @@ export function NoteEditor({
 
       try {
         await editor.isReady;
+        if (!disposed) {
+          dragCleanupRef.current?.();
+          dragCleanupRef.current = installBlockSurfaceDragging(editor);
+        }
       } catch (error) {
         if (!disposed) {
           console.error("Failed to initialize the editor.", error);
@@ -267,6 +1366,8 @@ export function NoteEditor({
 
       const editor = editorRef.current;
       editorRef.current = null;
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
 
       if (editor) {
         void editor.isReady.then(() => editor.destroy()).catch(() => undefined);
@@ -291,7 +1392,9 @@ export function NoteEditor({
     void editor.isReady
       .then(() =>
         editor.render(
-          initialDocument.blocks.length > 0 ? initialDocument : { ...emptyNoteDocument },
+          initialDocument.blocks.length > 0
+            ? initialDocument
+            : { ...emptyNoteDocument },
         ),
       )
       .catch((error) => {
@@ -299,12 +1402,309 @@ export function NoteEditor({
       });
   }, [initialDocument]);
 
+  useEffect(() => {
+    if (readOnly || !holderRef.current) {
+      return;
+    }
+
+    const holder = holderRef.current;
+
+    const getFocusedBlock = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) {
+        return null;
+      }
+
+      if (
+        !target.closest(
+          '[contenteditable="true"], textarea, input, math-field',
+        )
+      ) {
+        return null;
+      }
+
+      return target.closest<HTMLElement>(".ce-block");
+    };
+
+    const updateSlashMenu = () => {
+      const activeElement = document.activeElement;
+      const block = getFocusedBlock(activeElement);
+
+      if (!block) {
+        setSlashCommandMenu(null);
+        return;
+      }
+
+      const blockIndex = Array.from(
+        holder.querySelectorAll<HTMLElement>(".ce-block"),
+      ).indexOf(block);
+
+      if (blockIndex < 0) {
+        setSlashCommandMenu(null);
+        return;
+      }
+
+      const text = stripHtml(block.textContent ?? "");
+      const match = text.match(/^\/([^\s]*)?$/);
+
+      if (!match) {
+        setSlashCommandMenu(null);
+        return;
+      }
+
+      const selectionRect = window.getSelection()?.rangeCount
+        ? window.getSelection()?.getRangeAt(0).getBoundingClientRect()
+        : null;
+      const blockRect = block.getBoundingClientRect();
+      const x = selectionRect && selectionRect.left > 0 ? selectionRect.left : blockRect.left + 32;
+      const y =
+        selectionRect && selectionRect.bottom > 0
+          ? selectionRect.bottom + 8
+          : blockRect.top + 36;
+
+      setSlashCommandMenu({
+        x,
+        y,
+        blockIndex,
+        query: match[1] ?? "",
+      });
+    };
+
+    const handleInput = () => {
+      window.requestAnimationFrame(updateSlashMenu);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSlashCommandMenu(null);
+        return;
+      }
+
+      if (!slashCommandMenu) {
+        return;
+      }
+
+      if (event.key === "Enter") {
+        const firstCommand = getSlashCommandMatches(slashCommandMenu.query)[0];
+        if (firstCommand) {
+          event.preventDefault();
+          handleSlashCommand(firstCommand);
+        }
+      }
+    };
+
+    holder.addEventListener("input", handleInput, true);
+    holder.addEventListener("keyup", handleInput, true);
+    holder.addEventListener("focusin", handleInput, true);
+    holder.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      holder.removeEventListener("input", handleInput, true);
+      holder.removeEventListener("keyup", handleInput, true);
+      holder.removeEventListener("focusin", handleInput, true);
+      holder.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [handleSlashCommand, readOnly, slashCommandMenu]);
+
+  useEffect(() => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    const closeMenu = (event: Event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("[data-note-block-context-menu]")
+      ) {
+        return;
+      }
+
+      setBlockContextMenu(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setBlockContextMenu(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", closeMenu, true);
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu, true);
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [blockContextMenu]);
+
   return (
-    <section className="note-editor relative min-h-[78vh]">
+    <section
+      ref={selectionScopeRef}
+      className="note-editor relative flex flex-1 flex-col"
+    >
+      {selectionPrelude}
       <div
         ref={holderRef}
-        className="mx-auto min-h-[72vh] w-full max-w-4xl px-2 pb-24 pt-8 md:px-8 md:pb-32 md:pt-12"
+        className="note-editor__canvas flex-1 w-full px-4 pb-28 pt-6 md:px-10 md:pb-36 md:pt-8"
       />
+      {slashCommandMenu ? (
+        <div
+          data-note-slash-command-menu
+          className="note-editor__slash-menu"
+          role="menu"
+          style={{
+            left: slashCommandMenu.x,
+            top: slashCommandMenu.y,
+          }}
+        >
+          {getSlashCommandMatches(slashCommandMenu.query).length > 0 ? (
+            getSlashCommandMatches(slashCommandMenu.query).map((command) => (
+              <button
+                key={command.id}
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => handleSlashCommand(command)}
+              >
+                <span>{command.label}</span>
+                <span>{command.hint}</span>
+              </button>
+            ))
+          ) : (
+            <div className="note-editor__slash-menu-empty">No commands</div>
+          )}
+        </div>
+      ) : null}
+      {blockContextMenu ? (
+        <div
+          data-note-block-context-menu
+          className="note-editor__context-menu"
+          role="menu"
+          style={{
+            left: blockContextMenu.x,
+            top: blockContextMenu.y,
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <div className="note-editor__context-menu-item note-editor__context-menu-item--submenu">
+            <span>Turn into</span>
+            <span aria-hidden="true">›</span>
+            <div className="note-editor__context-submenu" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "paragraph" })}
+              >
+                Text
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "header", level: 1 })}
+              >
+                Heading 1
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "header", level: 2 })}
+              >
+                Heading 2
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "header", level: 3 })}
+              >
+                Heading 3
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() =>
+                  handleConvertBlock({ type: "list", style: "unordered" })
+                }
+              >
+                Bulleted list
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() =>
+                  handleConvertBlock({ type: "list", style: "ordered" })
+                }
+              >
+                Numbered list
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() =>
+                  handleConvertBlock({ type: "list", style: "checklist" })
+                }
+              >
+                Checklist
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "quote" })}
+              >
+                Quote
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "code" })}
+              >
+                Code
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => handleConvertBlock({ type: "math" })}
+              >
+                Math
+              </button>
+            </div>
+          </div>
+          <div className="note-editor__context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleInsertBlockBelow()}
+          >
+            New block below
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleMoveBlock(-1)}
+          >
+            Move up
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleMoveBlock(1)}
+          >
+            Move down
+          </button>
+          <div className="note-editor__context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="note-editor__context-menu-danger"
+            onClick={() => handleDeleteBlock()}
+          >
+            Delete block
+          </button>
+          <div className="note-editor__context-menu-meta">
+            {blockContextMenu.blockType}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

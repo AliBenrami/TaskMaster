@@ -97,6 +97,7 @@ export const note = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("Untitled"),
     content: jsonb("content"),
+    markdown: text("markdown").notNull().default(""),
     sourceType: noteSourceEnum("source_type").notNull().default("manual"),
     fileUrl: text("file_url"),
     fileName: text("file_name"),
