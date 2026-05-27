@@ -356,14 +356,6 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
 
   return (
     <main className="flex h-full flex-col gap-4">
-      <div className="shrink-0 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Quizzes</h1>
-        {started ? (
-          <Button type="button" variant="outline" leadingIcon={<RotateCcw className="size-4" />} onClick={resetQuiz}>
-            Reset
-          </Button>
-        ) : null}
-      </div>
       {error ? (
         <div className="shrink-0 rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
           {error}
@@ -802,6 +794,19 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
               </div>
             ) : null}
           </CardContent>
+
+          <div className="shrink-0 flex items-center justify-between gap-3">
+            {started ? (
+              <Button
+                type="button"
+                variant="outline"
+                leadingIcon={<RotateCcw className="size-4" />}
+                onClick={resetQuiz}
+              >
+                Reset
+              </Button>
+            ) : null}
+          </div>
         </Card>
       </div>
     </main>
