@@ -15,6 +15,7 @@ type AppShellProps = {
 export function AppShell({ children, displayName }: AppShellProps) {
   const pathname = usePathname();
   const isNotesRoute = pathname.startsWith("/notes");
+  const isDashboard = pathname === "/";
   const sidebarBehavior = useSidebarBehavior();
   const [collapsed, setCollapsed] = useState(true);
   const [hoverExpanded, setHoverExpanded] = useState(false);
@@ -22,12 +23,7 @@ export function AppShell({ children, displayName }: AppShellProps) {
   const sidebarCollapsed = hoverMode ? !hoverExpanded : collapsed;
 
   return (
-    <div
-      className={cx(
-        "flex min-h-screen bg-background text-foreground",
-        isNotesRoute && "h-screen overflow-hidden",
-      )}
-    >
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <AppSidebar
         pathname={pathname}
         displayName={displayName}
@@ -37,13 +33,14 @@ export function AppShell({ children, displayName }: AppShellProps) {
         onHoverChange={setHoverExpanded}
       />
       <div className="min-h-0 min-w-0 flex-1">
-        {/* <AppTopbar pathname={pathname} /> */}
         <main
           className={cx(
-            "w-full",
+            "h-full w-full",
             isNotesRoute
-              ? "h-full max-w-none overflow-hidden p-0"
-              : "mx-auto max-w-[1600px] px-5 py-5 lg:px-6 lg:py-6",
+              ? "overflow-hidden p-0"
+              : isDashboard
+              ? "flex flex-col p-3"
+              : "p-3",
           )}
         >
           {children}

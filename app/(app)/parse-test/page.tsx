@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Button, getButtonClassName } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
 import { requireServerSession } from "@/lib/auth-session";
 import { isParseTestEnabled } from "@/lib/parse-test/feature";
 import { getParseTestRunSummaries, getParseTestViewModelForRun } from "@/lib/parse-test/service";
@@ -47,23 +46,16 @@ export default async function ParseTestPage(props: {
       : null;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Syllabus parsing"
-        title="Classes start here"
-        description="Upload a syllabus, let ParseTest structure it, and use the resulting class as the anchor for notes and future study tools."
-        actions={
-          <>
-            <Link href="/classes" className={getButtonClassName("outline")}>
-              View classes
-            </Link>
-            <Button type="button" disabled>
-              AI pipeline live
-            </Button>
-          </>
-        }
-      />
+    <div className="flex h-full flex-col gap-4">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Upload syllabus</h1>
+        <div className="flex gap-2">
+          <Link href="/classes" className={getButtonClassName("outline")}>View classes</Link>
+          <Button type="button" disabled>AI pipeline live</Button>
+        </div>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <ParseTestClient
           hasPreview={Boolean(preview)}
@@ -93,6 +85,7 @@ export default async function ParseTestPage(props: {
         uploadStatusParam={uploadStatusParam}
         displayName={session.user.name || session.user.email}
       />
+      </div>
     </div>
   );
 }

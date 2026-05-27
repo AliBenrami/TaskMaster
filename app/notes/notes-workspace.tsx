@@ -78,7 +78,19 @@ function getClassLabel(item: WorkspaceClass) {
  */
 function getClassShortLabel(item: WorkspaceClass) {
   if (item.courseCode) return item.courseCode;
-  const skip = new Set(["a", "an", "the", "of", "in", "to", "for", "and", "or", "at", "by"]);
+  const skip = new Set([
+    "a",
+    "an",
+    "the",
+    "of",
+    "in",
+    "to",
+    "for",
+    "and",
+    "or",
+    "at",
+    "by",
+  ]);
   const words = item.title.split(/\s+/).filter(Boolean);
   const acronym = words
     .filter((w) => !skip.has(w.toLowerCase()))
@@ -90,7 +102,10 @@ function getClassShortLabel(item: WorkspaceClass) {
 
 const isTempNote = (id: string) => id.startsWith("temp-");
 
-function createTempNote(classId: string | null, overrides?: Partial<WorkspaceNote>): WorkspaceNote {
+function createTempNote(
+  classId: string | null,
+  overrides?: Partial<WorkspaceNote>,
+): WorkspaceNote {
   const now = new Date().toISOString();
   return {
     id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -154,7 +169,9 @@ function UploadModal({ onClose, onUploadMd, onGenerate }: UploadModalProps) {
               <FileText className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium text-foreground">Upload .md file</span>
+              <span className="block text-sm font-medium text-foreground">
+                Upload .md file
+              </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 Import a Markdown document directly
               </span>
@@ -170,7 +187,9 @@ function UploadModal({ onClose, onUploadMd, onGenerate }: UploadModalProps) {
               <Sparkles className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-medium text-foreground">Generate from study material</span>
+              <span className="block text-sm font-medium text-foreground">
+                Generate from study material
+              </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 Upload slides, PDFs, or images — AI writes the notes
               </span>
@@ -196,7 +215,9 @@ export function NotesWorkspace({
   const router = useRouter();
   const [notes, setNotes] = useState(() => sortWorkspaceNotes(initialNotes));
   const initialSelectedNote = initialClassId
-    ? (initialNotes.find((note) => note.classId === initialClassId) ?? initialNotes[0] ?? null)
+    ? (initialNotes.find((note) => note.classId === initialClassId) ??
+      initialNotes[0] ??
+      null)
     : (initialNotes[0] ?? null);
 
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -206,7 +227,9 @@ export function NotesWorkspace({
     noteId: initialSelectedNote?.id ?? null,
     value: initialSelectedNote?.title ?? "Untitled",
   }));
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [isPending, startTransition] = useTransition();
 
   // Sidebar drag-and-drop state
@@ -214,8 +237,12 @@ export function NotesWorkspace({
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
 
   // Sidebar multi-select state
-  const [sidebarSelectedIds, setSidebarSelectedIds] = useState<Set<string>>(() => new Set());
-  const [lastSidebarSelectedId, setLastSidebarSelectedId] = useState<string | null>(null);
+  const [sidebarSelectedIds, setSidebarSelectedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [lastSidebarSelectedId, setLastSidebarSelectedId] = useState<
+    string | null
+  >(null);
   const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
 
   // Sidebar note context menu
@@ -241,7 +268,10 @@ export function NotesWorkspace({
     () => notes.find((note) => note.id === selectedId) ?? notes[0] ?? null,
     [notes, selectedId],
   );
-  const recentNotes = useMemo(() => sortWorkspaceNotes(notes).slice(0, 8), [notes]);
+  const recentNotes = useMemo(
+    () => sortWorkspaceNotes(notes).slice(0, 8),
+    [notes],
+  );
   const groupedNotes = useMemo(
     () => [
       ...classes.map((item) => ({
@@ -288,7 +318,10 @@ export function NotesWorkspace({
 
   function mergeNote(nextNote: WorkspaceNote) {
     setNotes((current) =>
-      sortWorkspaceNotes([nextNote, ...current.filter((n) => n.id !== nextNote.id)]),
+      sortWorkspaceNotes([
+        nextNote,
+        ...current.filter((n) => n.id !== nextNote.id),
+      ]),
     );
   }
 
@@ -375,11 +408,16 @@ export function NotesWorkspace({
       });
       const created = await readNoteRecord(response);
       setNotes((current) =>
-        sortWorkspaceNotes([created, ...current.filter((n) => n.id !== temp.id)]),
+        sortWorkspaceNotes([
+          created,
+          ...current.filter((n) => n.id !== temp.id),
+        ]),
       );
       setSelectedId((prev) => (prev === temp.id ? created.id : prev));
       setTitleDraftState((prev) =>
-        prev.noteId === temp.id ? { noteId: created.id, value: created.title } : prev,
+        prev.noteId === temp.id
+          ? { noteId: created.id, value: created.title }
+          : prev,
       );
       selectedIdRef.current = created.id;
     } catch (err) {
@@ -417,9 +455,13 @@ export function NotesWorkspace({
     setSelectedId(nextNote?.id ?? null);
 
     try {
-      const response = await fetch(`/api/notes/${noteToDelete.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/notes/${noteToDelete.id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         throw new Error(payload?.error || "Could not delete the note.");
       }
     } catch (err) {
@@ -461,11 +503,16 @@ export function NotesWorkspace({
       });
       const created = await readNoteRecord(response);
       setNotes((current) =>
-        sortWorkspaceNotes([created, ...current.filter((n) => n.id !== temp.id)]),
+        sortWorkspaceNotes([
+          created,
+          ...current.filter((n) => n.id !== temp.id),
+        ]),
       );
       setSelectedId((prev) => (prev === temp.id ? created.id : prev));
       setTitleDraftState((prev) =>
-        prev.noteId === temp.id ? { noteId: created.id, value: created.title } : prev,
+        prev.noteId === temp.id
+          ? { noteId: created.id, value: created.title }
+          : prev,
       );
       selectedIdRef.current = created.id;
     } catch (err) {
@@ -491,23 +538,37 @@ export function NotesWorkspace({
     try {
       const formData = new FormData();
       formData.set("file", file);
-      formData.set("title", file.name.replace(/\.[^.]+$/, "") || "Uploaded Note");
+      formData.set(
+        "title",
+        file.name.replace(/\.[^.]+$/, "") || "Uploaded Note",
+      );
       if (classId) formData.set("classId", classId);
 
-      toast.loading("Generating notes with AI…", { id: toastId, description: undefined });
+      toast.loading("Generating notes with AI…", {
+        id: toastId,
+        description: undefined,
+      });
 
-      const response = await fetch("/api/notes/upload", { method: "POST", body: formData });
+      const response = await fetch("/api/notes/upload", {
+        method: "POST",
+        body: formData,
+      });
       const payload = (await response.json().catch(() => null)) as {
         notes?: NoteRecord[];
         error?: string;
       } | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Could not generate notes from the uploaded file.");
+        throw new Error(
+          payload?.error ?? "Could not generate notes from the uploaded file.",
+        );
       }
 
-      const created = (payload?.notes ?? []).map((r) => noteRecordToWorkspaceNote(r));
-      if (created.length === 0) throw new Error("No notes returned from generation pipeline.");
+      const created = (payload?.notes ?? []).map((r) =>
+        noteRecordToWorkspaceNote(r),
+      );
+      if (created.length === 0)
+        throw new Error("No notes returned from generation pipeline.");
 
       mergeNotes(created);
       setSelectedId(created[0].id);
@@ -519,7 +580,8 @@ export function NotesWorkspace({
     } catch (err) {
       toast.error("Generation failed", {
         id: toastId,
-        description: err instanceof Error ? err.message : "Could not generate notes.",
+        description:
+          err instanceof Error ? err.message : "Could not generate notes.",
         duration: 6000,
       });
       throw err;
@@ -527,7 +589,9 @@ export function NotesWorkspace({
   }
 
   async function handleImportMdFile(file: File, classId?: string | null) {
-    const toastId = toast.loading(`Importing ${file.name}…`, { duration: Infinity });
+    const toastId = toast.loading(`Importing ${file.name}…`, {
+      duration: Infinity,
+    });
 
     try {
       const text = await file.text();
@@ -537,18 +601,27 @@ export function NotesWorkspace({
       const response = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, classId: classId ?? null, content: document }),
+        body: JSON.stringify({
+          title,
+          classId: classId ?? null,
+          content: document,
+        }),
       });
 
       const created = await readNoteRecord(response);
       mergeNote(created);
       setSelectedId(created.id);
       setTitleDraftState({ noteId: created.id, value: created.title });
-      toast.success("Note imported", { id: toastId, description: title, duration: 3000 });
+      toast.success("Note imported", {
+        id: toastId,
+        description: title,
+        duration: 3000,
+      });
     } catch (err) {
       toast.error("Import failed", {
         id: toastId,
-        description: err instanceof Error ? err.message : "Could not import the file.",
+        description:
+          err instanceof Error ? err.message : "Could not import the file.",
         duration: 6000,
       });
       throw err;
@@ -560,7 +633,8 @@ export function NotesWorkspace({
 
     const nextTitle = draftTitle.trim() || "Untitled";
     if (nextTitle === getRenderableTitle(selectedNote.title)) {
-      if (selectedNote.title !== nextTitle) mergeNote({ ...selectedNote, title: nextTitle });
+      if (selectedNote.title !== nextTitle)
+        mergeNote({ ...selectedNote, title: nextTitle });
       return;
     }
 
@@ -583,15 +657,18 @@ export function NotesWorkspace({
     if (!note || note.classId === groupClassId || isTempNote(noteId)) return;
 
     setNotes((current) =>
-      current.map((n) => (n.id === noteId ? { ...n, classId: groupClassId } : n)),
+      current.map((n) =>
+        n.id === noteId ? { ...n, classId: groupClassId } : n,
+      ),
     );
-    startTransition(() =>
-      void saveNote(noteId, { classId: groupClassId }).catch((err) => {
-        toast.error("Could not move note", {
-          description: err instanceof Error ? err.message : undefined,
-          duration: 5000,
-        });
-      }),
+    startTransition(
+      () =>
+        void saveNote(noteId, { classId: groupClassId }).catch((err) => {
+          toast.error("Could not move note", {
+            description: err instanceof Error ? err.message : undefined,
+            duration: 5000,
+          });
+        }),
     );
   }
 
@@ -616,7 +693,9 @@ export function NotesWorkspace({
     const toIdx = sorted.findIndex((n) => n.id === toId);
     if (fromIdx === -1 || toIdx === -1) return;
     const [start, end] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
-    setSidebarSelectedIds(new Set(sorted.slice(start, end + 1).map((n) => n.id)));
+    setSidebarSelectedIds(
+      new Set(sorted.slice(start, end + 1).map((n) => n.id)),
+    );
     setLastSidebarSelectedId(toId);
   }
 
@@ -638,14 +717,19 @@ export function NotesWorkspace({
     clearSidebarSelect();
 
     await Promise.allSettled(
-      ids.map((id) => !isTempNote(id) && fetch(`/api/notes/${id}`, { method: "DELETE" })),
+      ids.map(
+        (id) =>
+          !isTempNote(id) && fetch(`/api/notes/${id}`, { method: "DELETE" }),
+      ),
     );
     // On partial failure we could restore, but for now just log
   }
 
   async function handleBulkDuplicate() {
     if (sidebarSelectedIds.size === 0) return;
-    const sources = notes.filter((n) => sidebarSelectedIds.has(n.id) && !isTempNote(n.id));
+    const sources = notes.filter(
+      (n) => sidebarSelectedIds.has(n.id) && !isTempNote(n.id),
+    );
     if (sources.length === 0) return;
 
     const temps = sources.map((source) =>
@@ -673,7 +757,10 @@ export function NotesWorkspace({
           });
           const created = await readNoteRecord(response);
           setNotes((current) =>
-            sortWorkspaceNotes([created, ...current.filter((n) => n.id !== temp.id)]),
+            sortWorkspaceNotes([
+              created,
+              ...current.filter((n) => n.id !== temp.id),
+            ]),
           );
         } catch {
           setNotes((current) => current.filter((n) => n.id !== temp.id));
@@ -687,7 +774,9 @@ export function NotesWorkspace({
     const ids = [...sidebarSelectedIds];
 
     setNotes((current) =>
-      current.map((n) => (ids.includes(n.id) ? { ...n, classId: targetClassId } : n)),
+      current.map((n) =>
+        ids.includes(n.id) ? { ...n, classId: targetClassId } : n,
+      ),
     );
     clearSidebarSelect();
 
@@ -723,11 +812,16 @@ export function NotesWorkspace({
       });
       const created = await readNoteRecord(response);
       setNotes((current) =>
-        sortWorkspaceNotes([created, ...current.filter((n) => n.id !== temp.id)]),
+        sortWorkspaceNotes([
+          created,
+          ...current.filter((n) => n.id !== temp.id),
+        ]),
       );
       setSelectedId((prev) => (prev === temp.id ? created.id : prev));
       setTitleDraftState((prev) =>
-        prev.noteId === temp.id ? { noteId: created.id, value: created.title } : prev,
+        prev.noteId === temp.id
+          ? { noteId: created.id, value: created.title }
+          : prev,
       );
       selectedIdRef.current = created.id;
     } catch (err) {
@@ -746,9 +840,13 @@ export function NotesWorkspace({
     setNotes((current) => current.filter((n) => n.id !== target.id));
     if (selectedNote?.id === target.id) setSelectedId(nextNote?.id ?? null);
     try {
-      const response = await fetch(`/api/notes/${target.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/notes/${target.id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         throw new Error(payload?.error || "Could not delete the note.");
       }
     } catch (err) {
@@ -764,11 +862,16 @@ export function NotesWorkspace({
   // Note item renderer
   // -------------------------------------------------------------------------
 
-  const renderNoteItem = (note: WorkspaceNote, options?: { compact?: boolean }) => {
+  const renderNoteItem = (
+    note: WorkspaceNote,
+    options?: { compact?: boolean },
+  ) => {
     const isOpen = note.id === selectedNote?.id;
     const isSidebarSelected = sidebarSelectedIds.has(note.id);
     const isTemp = isTempNote(note.id);
-    const linkedClass = note.classId ? (classesById.get(note.classId) ?? null) : null;
+    const linkedClass = note.classId
+      ? (classesById.get(note.classId) ?? null)
+      : null;
     const hasSelection = sidebarSelectedIds.size > 0;
 
     return (
@@ -795,7 +898,8 @@ export function NotesWorkspace({
           isSidebarSelected && "bg-accent-soft",
           draggedNoteId &&
             (draggedNoteId === note.id ||
-              (sidebarSelectedIds.has(draggedNoteId) && sidebarSelectedIds.has(note.id))) &&
+              (sidebarSelectedIds.has(draggedNoteId) &&
+                sidebarSelectedIds.has(note.id))) &&
             "opacity-40",
         )}
       >
@@ -808,13 +912,18 @@ export function NotesWorkspace({
           }}
           className={cx(
             "flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground",
-            hasSelection || isSidebarSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            hasSelection || isSidebarSelected
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100",
           )}
           aria-label={isSidebarSelected ? "Deselect note" : "Select note"}
           tabIndex={-1}
         >
           {isSidebarSelected ? (
-            <CheckSquare className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+            <CheckSquare
+              className="h-3.5 w-3.5 text-accent"
+              aria-hidden="true"
+            />
           ) : (
             <Square className="h-3.5 w-3.5" aria-hidden="true" />
           )}
@@ -846,7 +955,10 @@ export function NotesWorkspace({
             isTemp && "animate-pulse opacity-60",
           )}
         >
-          <FileText className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+          <FileText
+            className="h-4 w-4 shrink-0 opacity-70"
+            aria-hidden="true"
+          />
           <span className="min-w-0 flex-1 truncate font-medium">
             {getRenderableTitle(note.title)}
           </span>
@@ -885,9 +997,12 @@ export function NotesWorkspace({
           event.currentTarget.value = "";
           if (!file) return;
           startTransition(() => {
-            void handleGenerateFromFile(file, selectedNote?.classId ?? fallbackClassId).catch(
-              () => { /* toast already shown inside handler */ },
-            );
+            void handleGenerateFromFile(
+              file,
+              selectedNote?.classId ?? fallbackClassId,
+            ).catch(() => {
+              /* toast already shown inside handler */
+            });
           });
         }}
       />
@@ -903,9 +1018,12 @@ export function NotesWorkspace({
           event.currentTarget.value = "";
           if (!file) return;
           startTransition(() => {
-            void handleImportMdFile(file, selectedNote?.classId ?? fallbackClassId).catch(
-              () => { /* toast already shown inside handler */ },
-            );
+            void handleImportMdFile(
+              file,
+              selectedNote?.classId ?? fallbackClassId,
+            ).catch(() => {
+              /* toast already shown inside handler */
+            });
           });
         }}
       />
@@ -943,7 +1061,7 @@ export function NotesWorkspace({
               <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span className="truncate">New page</span>
             </button>
-            <button
+            {/* <button
               type="button"
               onClick={() => setIsUploadModalOpen(true)}
               disabled={isPending}
@@ -952,37 +1070,53 @@ export function NotesWorkspace({
               aria-label="Import or generate notes"
             >
               <Upload className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </button> */}
           </div>
 
           {/* Note list */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">
             {recentNotes.length > 0 ? (
               <section className="mb-5">
-                <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">Recents</div>
+                <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                  Recents
+                </div>
                 <div className="space-y-0.5">
-                  {recentNotes.map((note) => renderNoteItem(note, { compact: true }))}
+                  {recentNotes.map((note) =>
+                    renderNoteItem(note, { compact: true }),
+                  )}
                 </div>
               </section>
             ) : null}
 
             <section className="space-y-1">
-              <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">Private</div>
+              <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                Private
+              </div>
               {groupedNotes.map((group) => {
                 const isCollapsed = collapsedGroups.has(group.id);
-                const isDragTarget = dragOverGroupId === group.id && draggedNoteId !== null;
+                const isDragTarget =
+                  dragOverGroupId === group.id && draggedNoteId !== null;
                 const draggedNote = draggedNoteId
                   ? notes.find((n) => n.id === draggedNoteId)
                   : null;
                 // When dragging a selected note, at least one selected note must
                 // differ from this group's class for the drop to be meaningful.
-                const canDrop = draggedNote && (() => {
-                  const id = draggedNoteId!;
-                  if (sidebarSelectedIds.has(id) && sidebarSelectedIds.size > 1) {
-                    return notes.some((n) => sidebarSelectedIds.has(n.id) && n.classId !== group.classId);
-                  }
-                  return draggedNote.classId !== group.classId;
-                })();
+                const canDrop =
+                  draggedNote &&
+                  (() => {
+                    const id = draggedNoteId!;
+                    if (
+                      sidebarSelectedIds.has(id) &&
+                      sidebarSelectedIds.size > 1
+                    ) {
+                      return notes.some(
+                        (n) =>
+                          sidebarSelectedIds.has(n.id) &&
+                          n.classId !== group.classId,
+                      );
+                    }
+                    return draggedNote.classId !== group.classId;
+                  })();
 
                 return (
                   <div
@@ -1009,7 +1143,10 @@ export function NotesWorkspace({
                       if (draggedNoteId && canDrop) {
                         // If the dragged note is part of the sidebar selection,
                         // move all selected notes. Otherwise just move the one.
-                        if (sidebarSelectedIds.has(draggedNoteId) && sidebarSelectedIds.size > 1) {
+                        if (
+                          sidebarSelectedIds.has(draggedNoteId) &&
+                          sidebarSelectedIds.size > 1
+                        ) {
                           handleBulkMove(group.classId);
                         } else {
                           handleNoteDrop(group.classId, draggedNoteId);
@@ -1019,7 +1156,9 @@ export function NotesWorkspace({
                     }}
                     className={cx(
                       "rounded-lg transition-colors",
-                      isDragTarget && canDrop ? "bg-accent-soft ring-1 ring-accent/30" : "",
+                      isDragTarget && canDrop
+                        ? "bg-accent-soft ring-1 ring-accent/30"
+                        : "",
                     )}
                   >
                     <div className="group flex items-center gap-1 rounded-md text-muted-foreground hover:bg-surface hover:text-foreground">
@@ -1030,9 +1169,15 @@ export function NotesWorkspace({
                         aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${group.title}`}
                       >
                         {isCollapsed ? (
-                          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          <ChevronRight
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
                         ) : (
-                          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                          <ChevronDown
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
                         )}
                       </button>
                       <button
@@ -1040,7 +1185,10 @@ export function NotesWorkspace({
                         onClick={() => toggleGroup(group.id)}
                         className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-sm font-medium"
                       >
-                        <Folder className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+                        <Folder
+                          className="h-4 w-4 shrink-0 opacity-70"
+                          aria-hidden="true"
+                        />
                         <span className="truncate" title={group.title}>
                           {group.shortTitle}
                         </span>
@@ -1051,7 +1199,9 @@ export function NotesWorkspace({
                       <button
                         type="button"
                         onClick={() =>
-                          startTransition(() => void handleCreateNote(group.classId))
+                          startTransition(
+                            () => void handleCreateNote(group.classId),
+                          )
                         }
                         disabled={isPending}
                         className="mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md opacity-0 hover:bg-surface-elevated group-hover:opacity-100 disabled:opacity-40"
@@ -1102,7 +1252,10 @@ export function NotesWorkspace({
                     onClick={() => setIsBulkMoveOpen((v) => !v)}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-surface hover:text-foreground"
                   >
-                    <FolderInput className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <FolderInput
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
                     Move to…
                     <ChevronDown
                       className={cx(
@@ -1119,7 +1272,10 @@ export function NotesWorkspace({
                         onClick={() => handleBulkMove(null)}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-surface-muted hover:text-foreground"
                       >
-                        <Folder className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                        <Folder
+                          className="h-3.5 w-3.5 shrink-0 opacity-60"
+                          aria-hidden="true"
+                        />
                         Unfiled
                       </button>
                       {classes.map((cls) => (
@@ -1130,8 +1286,13 @@ export function NotesWorkspace({
                           title={getClassLabel(cls)}
                           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-surface-muted hover:text-foreground"
                         >
-                          <Folder className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
-                          <span className="truncate">{getClassShortLabel(cls)}</span>
+                          <Folder
+                            className="h-3.5 w-3.5 shrink-0 opacity-60"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">
+                            {getClassShortLabel(cls)}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -1220,10 +1381,15 @@ export function NotesWorkspace({
                         value={draftTitle}
                         onChange={(event) => {
                           const nextTitle = event.currentTarget.value;
-                          setTitleDraftState({ noteId: selectedNote.id, value: nextTitle });
+                          setTitleDraftState({
+                            noteId: selectedNote.id,
+                            value: nextTitle,
+                          });
                           setNotes((current) =>
                             current.map((n) =>
-                              n.id === selectedNote.id ? { ...n, title: nextTitle } : n,
+                              n.id === selectedNote.id
+                                ? { ...n, title: nextTitle }
+                                : n,
                             ),
                           );
                         }}
@@ -1237,7 +1403,9 @@ export function NotesWorkspace({
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatTimestamp(selectedNote.updatedAt)}</span>
                         {selectedNote.fileName ? (
-                          <span className="truncate">{selectedNote.fileName}</span>
+                          <span className="truncate">
+                            {selectedNote.fileName}
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -1251,7 +1419,9 @@ export function NotesWorkspace({
                     } catch (saveError) {
                       toast.error("Could not save note", {
                         description:
-                          saveError instanceof Error ? saveError.message : undefined,
+                          saveError instanceof Error
+                            ? saveError.message
+                            : undefined,
                         duration: 5000,
                       });
                     }
@@ -1265,7 +1435,9 @@ export function NotesWorkspace({
                 <Button
                   type="button"
                   onClick={() =>
-                    startTransition(() => void handleCreateNote(fallbackClassId))
+                    startTransition(
+                      () => void handleCreateNote(fallbackClassId),
+                    )
                   }
                   disabled={isPending}
                 >
@@ -1310,7 +1482,9 @@ export function NotesWorkspace({
             <button
               type="button"
               className="w-full px-3 py-1.5 text-left text-sm text-foreground hover:bg-surface"
-              onClick={() => void handleContextMenuDuplicate(noteContextMenu.note)}
+              onClick={() =>
+                void handleContextMenuDuplicate(noteContextMenu.note)
+              }
             >
               Duplicate
             </button>

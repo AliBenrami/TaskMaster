@@ -4,6 +4,10 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+html {
+  font-size: 20px;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #18181b;
