@@ -996,3 +996,34 @@ html.dark body {
   background: var(--note-code-bg);
   color: var(--note-code-fg);
 }
+
+/* ---- Code block: language label ---- */
+.note-code-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.35rem var(--note-code-block-padding-x) 0;
+}
+
+.note-code-block__lang {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--note-muted-foreground);
+  opacity: 0.7;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ---- Inline math spans ---- */
+.note-inline-math {
+  display: inline;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9em;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 3px;
+  padding: 0.05em 0.3em;
+  white-space: nowrap;
+}

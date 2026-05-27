@@ -1069,13 +1069,31 @@ export function NoteEditor({
     };
 
     const finishDrag = async () => {
+      if (!isDraggingBlocks) return;
+
+      // Stop live pointer tracking immediately so concurrent move events
+      // cannot restart a new drag or render stale previews.
+      isDraggingBlocks = false;
+      candidateBlock = null;
+      pointerMode = null;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      removeDragPreview();
+      // Capture dropIndex before clearDropIndicator() zeroes it out.
+      const targetDropIndex = dropIndex;
+      clearDropIndicator();
+      clearReflowTransforms();
+      syncSelectionClasses();
+
       const blocks = getBlocks();
       const selectedIndexes = blocks
         .map((block, index) => (selectedBlocks.has(block) ? index : -1))
         .filter((index) => index >= 0);
 
-      if (dropIndex !== null && selectedIndexes.length > 0) {
-        const targetDropIndex = dropIndex;
+      if (targetDropIndex !== null && selectedIndexes.length > 0) {
         const firstSelectedIndex = selectedIndexes[0];
         const lastSelectedIndex = selectedIndexes[selectedIndexes.length - 1];
 
@@ -1205,8 +1223,14 @@ export function NoteEditor({
     };
 
     const startDrag = (clientY: number) => {
-      if (!candidateBlock || !selectedBlocks.has(candidateBlock)) {
+      if (!candidateBlock) {
         return;
+      }
+
+      // Auto-select the candidate block if it isn't already part of the
+      // selection (enables drag-to-reorder without a prior rubber-band select).
+      if (!selectedBlocks.has(candidateBlock)) {
+        setSelectedBlocks([candidateBlock]);
       }
 
       isDraggingBlocks = true;
@@ -1304,19 +1328,32 @@ export function NoteEditor({
         event.target instanceof Element
           ? event.target.closest<HTMLElement>(".ce-block")
           : null;
-      const shouldPrepareDrag = block && selectedBlocks.has(block);
+      const isBlockSelected = block && selectedBlocks.has(block);
 
-      if (block && !shouldPrepareDrag) {
+      if (block && !isBlockSelected) {
+        // Block is not selected — clear any prior selection. We still set up
+        // pointer tracking so a drag gesture will work without a prior
+        // rubber-band select. If the user just clicks (no drag), pointerup
+        // calls clearSelection and allows native focus/cursor to work.
         clearSelection();
+        pointerMode = "pointer";
+        pressedBlock = block;
+        candidateBlock = block; // allow immediate drag
+        startX = event.clientX;
+        startY = event.clientY;
+        // No preventDefault — let the click focus the block for text editing.
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerUp);
         return;
       }
 
       pointerMode = "pointer";
       pressedBlock = block;
-      candidateBlock = shouldPrepareDrag ? block : null;
+      candidateBlock = isBlockSelected ? block : null;
       startX = event.clientX;
       startY = event.clientY;
-      if (shouldPrepareDrag) {
+      if (isBlockSelected) {
         event.preventDefault();
       }
       window.addEventListener("pointermove", handlePointerMove);
@@ -1396,19 +1433,26 @@ export function NoteEditor({
         event.target instanceof Element
           ? event.target.closest<HTMLElement>(".ce-block")
           : null;
-      const shouldPrepareDrag = block && selectedBlocks.has(block);
+      const isBlockSelected = block && selectedBlocks.has(block);
 
-      if (block && !shouldPrepareDrag) {
+      if (block && !isBlockSelected) {
         clearSelection();
+        pointerMode = "mouse";
+        pressedBlock = block;
+        candidateBlock = block;
+        startX = event.clientX;
+        startY = event.clientY;
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
         return;
       }
 
       pointerMode = "mouse";
       pressedBlock = block;
-      candidateBlock = shouldPrepareDrag ? block : null;
+      candidateBlock = isBlockSelected ? block : null;
       startX = event.clientX;
       startY = event.clientY;
-      if (shouldPrepareDrag) {
+      if (isBlockSelected) {
         event.preventDefault();
       }
       window.addEventListener("mousemove", handleMouseMove);
@@ -1446,9 +1490,12 @@ export function NoteEditor({
             return;
           }
 
+          // 220px wide menu, 320px max height — clamp so it never clips viewport.
+          const menuW = 220;
+          const menuH = 320;
           setBlockContextMenu({
-            x: event.clientX,
-            y: event.clientY,
+            x: Math.min(event.clientX, window.innerWidth - menuW - 8),
+            y: Math.min(event.clientY, window.innerHeight - menuH - 8),
             blockIndex,
             blockType: noteBlock.type,
           });
@@ -1461,6 +1508,7 @@ export function NoteEditor({
     selectionScope.addEventListener("pointerdown", handlePointerDown, true);
     selectionScope.addEventListener("mousedown", handleMouseDown, true);
     selectionScope.addEventListener("contextmenu", handleContextMenu, true);
+    window.addEventListener("blur", resetInteractionState);
 
     return () => {
       selectionScope.removeEventListener(
@@ -1474,6 +1522,7 @@ export function NoteEditor({
         handleContextMenu,
         true,
       );
+      window.removeEventListener("blur", resetInteractionState);
       resetInteractionState();
       clearBlockSelectionRef.current = () => undefined;
       selectedBlockIndexesRef.current = [];
@@ -1943,11 +1992,14 @@ export function NoteEditor({
         ? window.getSelection()?.getRangeAt(0).getBoundingClientRect()
         : null;
       const blockRect = block.getBoundingClientRect();
-      const x = selectionRect && selectionRect.left > 0 ? selectionRect.left : blockRect.left + 32;
-      const y =
+      const rawX = selectionRect && selectionRect.left > 0 ? selectionRect.left : blockRect.left + 32;
+      const rawY =
         selectionRect && selectionRect.bottom > 0
           ? selectionRect.bottom + 8
           : blockRect.top + 36;
+      // Clamp so the 288px-wide menu doesn't overflow the viewport.
+      const x = Math.min(rawX, window.innerWidth - 296);
+      const y = rawY;
 
       setSlashCommandMenu((current) => {
         const query = match[1] ?? "";
@@ -2086,8 +2138,8 @@ export function NoteEditor({
           className="note-editor__slash-menu"
           role="menu"
           style={{
-            left: slashCommandMenu.x,
-            top: slashCommandMenu.y,
+            left: `clamp(4px, ${slashCommandMenu.x}px, calc(100vw - 18.5rem))`,
+            top: `clamp(4px, ${slashCommandMenu.y}px, calc(100vh - 24rem))`,
           }}
         >
           {getSlashCommandMatches(slashCommandMenu.query).length > 0 ? (
@@ -2120,8 +2172,8 @@ export function NoteEditor({
           className="note-editor__context-menu"
           role="menu"
           style={{
-            left: blockContextMenu.x,
-            top: blockContextMenu.y,
+            left: `clamp(4px, ${blockContextMenu.x}px, calc(100vw - 14rem))`,
+            top: `clamp(4px, ${blockContextMenu.y}px, calc(100vh - 22rem))`,
           }}
           onContextMenu={(event) => event.preventDefault()}
         >
@@ -2207,28 +2259,6 @@ export function NoteEditor({
               </button>
             </div>
           </div>
-          <div className="note-editor__context-menu-separator" />
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => handleInsertBlockBelow()}
-          >
-            New block below
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => handleMoveBlock(-1)}
-          >
-            Move up
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => handleMoveBlock(1)}
-          >
-            Move down
-          </button>
           <div className="note-editor__context-menu-separator" />
           <button
             type="button"

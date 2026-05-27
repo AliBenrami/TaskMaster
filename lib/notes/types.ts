@@ -48,6 +48,7 @@ export type NoteQuoteBlockData = {
 
 export type NoteCodeBlockData = {
   code: string;
+  language?: string;
 };
 
 export type NoteImageFileData = {
@@ -208,6 +209,7 @@ export const NoteDocumentSchema: z.ZodType<NoteDocument> = z
             ...block,
             data: {
               code: block.data.code,
+              ...(block.data.language ? { language: block.data.language } : {}),
             },
           }
         : block,

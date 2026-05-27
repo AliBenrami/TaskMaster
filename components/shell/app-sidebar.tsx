@@ -109,9 +109,9 @@ export function AppSidebar({
           aria-label="TaskMaster home"
           title="TaskMaster"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground text-[0.8rem] font-semibold tracking-tight text-background">
-            TM
-          </span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground font-mono text-[0.45rem] leading-[1.1] tracking-tight text-background" aria-label="TaskMaster" style={{ whiteSpace: "pre" }}>{`/\\_/\\
+( o.o )
+ > ^ <`}</span>
           {!collapsed ? (
             <div className="min-w-0 max-lg:hidden">
               <p className="truncate text-[0.92rem] font-semibold tracking-tight text-foreground">
