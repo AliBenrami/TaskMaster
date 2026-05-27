@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement } from "react";
+import { isValidElement } from "react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -14,22 +14,39 @@ function omitNode<T extends { node?: unknown }>(props: T): Omit<T, "node"> {
   return rest;
 }
 
-function extractCode(children: ReactNode) {
-  if (!isValidElement<{ children?: ReactNode }>(children)) {
-    return "";
+function getTextContent(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
   }
 
-  const codeChildren = children.props.children;
-
-  if (typeof codeChildren === "string") {
-    return codeChildren.replace(/\n$/, "");
+  if (Array.isArray(node)) {
+    return node.map(getTextContent).join("");
   }
 
-  if (Array.isArray(codeChildren)) {
-    return codeChildren.join("").replace(/\n$/, "");
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return getTextContent(node.props.children);
+  }
+
+  if (node && typeof node === "object") {
+    if ("value" in node) {
+      const value = (node as { value?: unknown }).value;
+      return typeof value === "string" || typeof value === "number" ? String(value) : getTextContent(value as ReactNode);
+    }
+
+    if ("children" in node) {
+      return getTextContent((node as { children?: ReactNode }).children);
+    }
   }
 
   return "";
+}
+
+function extractCode(children: ReactNode) {
+  return getTextContent(children).replace(/\n$/, "");
+}
+
+function cleanMarkdownText(value: string) {
+  return value === "[object Object]" ? "" : value;
 }
 
 export function NoteRenderer({ markdown }: { markdown: string }) {
@@ -63,22 +80,26 @@ export function NoteRenderer({ markdown }: { markdown: string }) {
             );
           },
           pre: (props) => {
-            const { children } = omitNode(props);
-            return <CodeBlockView data={{ code: extractCode(Children.only(children)) }} />;
+            const { children, node } = props;
+            const code = cleanMarkdownText(extractCode(children)) || cleanMarkdownText(getTextContent(node as ReactNode));
+            return <CodeBlockView data={{ code }} />;
           },
           code: (props) => {
-            const { children, className, ...rest } = omitNode(props);
+            const { children, className, node, ...rest } = props;
+            const codeText =
+              cleanMarkdownText(getTextContent(children)) ||
+              cleanMarkdownText(getTextContent(node as ReactNode));
             if (className) {
               return (
                 <code className={className} {...rest}>
-                  {children}
+                  {codeText}
                 </code>
               );
             }
 
             return (
               <code className="rounded bg-zinc-100 px-1 py-0.5 text-[0.9em] text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
-                {children}
+                {codeText}
               </code>
             );
           },
