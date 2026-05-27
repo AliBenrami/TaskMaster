@@ -35,9 +35,10 @@ const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
 const EMPTY_PARAGRAPH_BLOCK: NoteBlock = {
   type: "paragraph",
   data: {
-    text: "",
+    text: "<br>",
   },
 };
+const NOTE_BLOCKS_CLIPBOARD_TYPE = "application/x-taskmaster-note-blocks";
 
 type BlockContextMenuState = {
   x: number;
@@ -51,6 +52,7 @@ type SlashCommandMenuState = {
   y: number;
   blockIndex: number;
   query: string;
+  activeIndex: number;
 };
 
 type BlockConversionTarget =
@@ -382,6 +384,11 @@ export function NoteEditor({
   const pendingSaveRef = useRef<NoteContent | null>(null);
   const isFlushingSaveRef = useRef(false);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const selectedBlockIndexesRef = useRef<number[]>([]);
+  const clearBlockSelectionRef = useRef<() => void>(() => undefined);
+  const pendingBlockFocusTimersRef = useRef<number[]>([]);
+  const shiftEnterInsertIndexRef = useRef<number | null>(null);
+  const shiftEnterChainTimerRef = useRef<number | null>(null);
   const [blockContextMenu, setBlockContextMenu] =
     useState<BlockContextMenuState | null>(null);
   const [slashCommandMenu, setSlashCommandMenu] =
@@ -417,14 +424,84 @@ export function NoteEditor({
     await flushPendingSaves();
   });
 
+  const saveEditorDocument = useCallback(async (editor: EditorJS) => {
+    const saved = NoteDocumentSchema.parse(await editor.save());
+    const holder = holderRef.current;
+    if (!holder) {
+      return saved;
+    }
+
+    const domBlocks = Array.from(holder.querySelectorAll<HTMLElement>(".ce-block"));
+    if (domBlocks.length === 0) {
+      return saved;
+    }
+
+    const savedBlocksById = new Map(
+      saved.blocks
+        .map((block, index) => [block.id, { block, index }] as const)
+        .filter((entry): entry is readonly [string, { block: NoteBlock; index: number }] =>
+          Boolean(entry[0]),
+        ),
+    );
+    const usedSavedIndexes = new Set<number>();
+    let nextSavedIndex = 0;
+
+    const takeNextSavedBlock = () => {
+      while (usedSavedIndexes.has(nextSavedIndex)) {
+        nextSavedIndex += 1;
+      }
+
+      const block = saved.blocks[nextSavedIndex];
+      if (block) {
+        usedSavedIndexes.add(nextSavedIndex);
+        nextSavedIndex += 1;
+      }
+
+      return block;
+    };
+
+    const blocks = domBlocks
+      .map((domBlock) => {
+        const id = domBlock.dataset.id;
+        const savedEntry = id ? savedBlocksById.get(id) : undefined;
+        if (savedEntry) {
+          usedSavedIndexes.add(savedEntry.index);
+          return savedEntry.block;
+        }
+
+        const paragraph = domBlock.querySelector<HTMLElement>(".ce-paragraph");
+        const isEmptyParagraph =
+          paragraph &&
+          paragraph.getAttribute("contenteditable") === "true" &&
+          stripHtml(paragraph.innerHTML).length === 0;
+
+        if (isEmptyParagraph) {
+          return {
+            id,
+            type: "paragraph",
+            data: {
+              text: "<br>",
+            },
+          } satisfies NoteBlock;
+        }
+
+        return takeNextSavedBlock();
+      })
+      .filter((block): block is NoteBlock => Boolean(block));
+
+    return NoteDocumentSchema.parse({
+      ...saved,
+      blocks,
+    });
+  }, []);
+
   const emitContentChange = useEffectEvent(async () => {
     if (!editorRef.current) {
       return;
     }
 
     try {
-      const saved = await editorRef.current.save();
-      const document = NoteDocumentSchema.parse(saved);
+      const document = await saveEditorDocument(editorRef.current);
       const content = createNoteContent(document);
       await publishContent(content);
     } catch (error) {
@@ -440,7 +517,7 @@ export function NoteEditor({
       }
 
       try {
-        const saved = NoteDocumentSchema.parse(await editor.save());
+        const saved = await saveEditorDocument(editor);
         const nextDocument = NoteDocumentSchema.parse(mutate(saved));
         renderedDocumentRef.current = nextDocument;
         await editor.render(
@@ -475,7 +552,7 @@ export function NoteEditor({
         setSlashCommandMenu(null);
       }
     },
-    [onContentChange, onSave],
+    [onContentChange, onSave, saveEditorDocument],
   );
 
   const resolveImageUpload = useEffectEvent(async (file: File) => {
@@ -489,56 +566,231 @@ export function NoteEditor({
     };
   });
 
-  const handleConvertBlock = (target: BlockConversionTarget) => {
+  const getContextTargetIndexes = useCallback(() => {
     if (!blockContextMenu) {
+      return [];
+    }
+
+    const selectedIndexes = selectedBlockIndexesRef.current;
+    return selectedIndexes.includes(blockContextMenu.blockIndex)
+      ? selectedIndexes
+      : [blockContextMenu.blockIndex];
+  }, [blockContextMenu]);
+
+  const cloneBlocksForInsert = useCallback((blocks: NoteBlock[]) => {
+    return blocks.map((block) => {
+      const cloned = structuredClone(block);
+      delete cloned.id;
+      return cloned;
+    }) as NoteBlock[];
+  }, []);
+
+  const getBlocksAtIndexes = useCallback(
+    (document: NoteDocument, indexes: number[]) => {
+      const indexSet = new Set(indexes);
+      return document.blocks.filter((_, index) => indexSet.has(index));
+    },
+    [],
+  );
+
+  const deleteBlocksAtIndexes = useCallback(
+    (indexes: number[]) => {
+      if (indexes.length === 0) {
+        return;
+      }
+
+      const indexSet = new Set(indexes);
+      void applyDocumentMutation((document) => ({
+        ...document,
+        blocks: document.blocks.filter(
+          (_, index) => !indexSet.has(index),
+        ) as NoteBlock[],
+      }));
+      clearBlockSelectionRef.current();
+    },
+    [applyDocumentMutation],
+  );
+
+  const moveBlocksAtIndexes = useCallback(
+    (indexes: number[], direction: -1 | 1) => {
+      if (indexes.length === 0) {
+        return;
+      }
+
+      void applyDocumentMutation((document) => {
+        const blocks = [...document.blocks];
+        const sortedIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+        const indexSet = new Set(sortedIndexes);
+
+        if (direction === -1) {
+          if (sortedIndexes[0] <= 0) {
+            return document;
+          }
+
+          for (const index of sortedIndexes) {
+            const previousIndex = index - 1;
+            if (indexSet.has(previousIndex)) {
+              continue;
+            }
+
+            const currentBlock = blocks[index];
+            const previousBlock = blocks[previousIndex];
+            if (!currentBlock || !previousBlock) {
+              continue;
+            }
+
+            blocks[previousIndex] = currentBlock;
+            blocks[index] = previousBlock;
+          }
+        } else {
+          if (sortedIndexes[sortedIndexes.length - 1] >= blocks.length - 1) {
+            return document;
+          }
+
+          for (const index of [...sortedIndexes].reverse()) {
+            const nextIndex = index + 1;
+            if (indexSet.has(nextIndex)) {
+              continue;
+            }
+
+            const currentBlock = blocks[index];
+            const nextBlock = blocks[nextIndex];
+            if (!currentBlock || !nextBlock) {
+              continue;
+            }
+
+            blocks[nextIndex] = currentBlock;
+            blocks[index] = nextBlock;
+          }
+        }
+
+        return {
+          ...document,
+          blocks,
+        };
+      });
+    },
+    [applyDocumentMutation],
+  );
+
+  const insertBlocksAfterIndex = useCallback(
+    (targetIndex: number, blocksToInsert: NoteBlock[]) => {
+      if (blocksToInsert.length === 0) {
+        return;
+      }
+
+      const nextBlocks = cloneBlocksForInsert(blocksToInsert);
+      void applyDocumentMutation((document) => {
+        const boundedIndex = Math.min(
+          Math.max(targetIndex, -1),
+          document.blocks.length - 1,
+        );
+
+        return {
+          ...document,
+          blocks: [
+            ...document.blocks.slice(0, boundedIndex + 1),
+            ...nextBlocks,
+            ...document.blocks.slice(boundedIndex + 1),
+          ] as NoteBlock[],
+        };
+      });
+      clearBlockSelectionRef.current();
+    },
+    [applyDocumentMutation, cloneBlocksForInsert],
+  );
+
+  const insertEmptyParagraphAfterIndex = useCallback(
+    (blockIndex: number) => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      const boundedIndex = Math.max(-1, blockIndex);
+      editor.blocks.insert(
+        "paragraph",
+        { text: "<br>" },
+        undefined,
+        boundedIndex + 1,
+        true,
+      );
+      clearBlockSelectionRef.current();
+      setSlashCommandMenu(null);
+      shiftEnterInsertIndexRef.current = boundedIndex + 1;
+      if (shiftEnterChainTimerRef.current !== null) {
+        window.clearTimeout(shiftEnterChainTimerRef.current);
+      }
+      shiftEnterChainTimerRef.current = window.setTimeout(() => {
+        shiftEnterInsertIndexRef.current = null;
+        shiftEnterChainTimerRef.current = null;
+      }, 1200);
+
+      pendingBlockFocusTimersRef.current.forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      pendingBlockFocusTimersRef.current = [];
+
+      const focusInsertedBlock = () => {
+        const holder = holderRef.current;
+        const nextBlock = holder?.querySelectorAll<HTMLElement>(".ce-block")[
+          boundedIndex + 1
+        ];
+        const focusTarget = nextBlock?.querySelector<HTMLElement>(
+          '[contenteditable="true"], textarea, input, math-field',
+        );
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+
+        focusTarget?.focus({ preventScroll: true });
+
+        if (focusTarget?.isContentEditable) {
+          const range = document.createRange();
+          range.selectNodeContents(focusTarget);
+          range.collapse(false);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      };
+
+      window.requestAnimationFrame(() => {
+        focusInsertedBlock();
+        pendingBlockFocusTimersRef.current = [0, 50, 150, 350, 650].map((delay) =>
+          window.setTimeout(focusInsertedBlock, delay),
+        );
+      });
+    },
+    [],
+  );
+
+  const handleConvertBlock = (target: BlockConversionTarget) => {
+    const targetIndexes = getContextTargetIndexes();
+    if (targetIndexes.length === 0) {
       return;
     }
 
-    const targetIndex = blockContextMenu.blockIndex;
+    const targetIndexSet = new Set(targetIndexes);
     void applyDocumentMutation((document) => ({
       ...document,
       blocks: document.blocks.map((block, index) =>
-        index === targetIndex ? convertBlock(block, target) : block,
+        targetIndexSet.has(index) ? convertBlock(block, target) : block,
       ) as NoteBlock[],
     }));
   };
 
   const handleMoveBlock = (direction: -1 | 1) => {
-    if (!blockContextMenu) {
-      return;
-    }
-
-    const targetIndex = blockContextMenu.blockIndex;
-    void applyDocumentMutation((document) => {
-      const blocks = [...document.blocks];
-      const nextIndex = targetIndex + direction;
-
-      if (nextIndex < 0 || nextIndex >= blocks.length) {
-        return document;
-      }
-
-      const currentBlock = blocks[targetIndex];
-      const nextBlock = blocks[nextIndex];
-      if (!currentBlock || !nextBlock) {
-        return document;
-      }
-
-      blocks[targetIndex] = nextBlock;
-      blocks[nextIndex] = currentBlock;
-
-      return {
-        ...document,
-        blocks,
-      };
-    });
+    moveBlocksAtIndexes(getContextTargetIndexes(), direction);
   };
 
   const handleInsertBlockBelow = () => {
-    if (!blockContextMenu) {
+    const targetIndexes = getContextTargetIndexes();
+    if (targetIndexes.length === 0) {
       return;
     }
 
-    const targetIndex = blockContextMenu.blockIndex;
+    const targetIndex = Math.max(...targetIndexes);
     void applyDocumentMutation((document) => ({
       ...document,
       blocks: [
@@ -550,17 +802,7 @@ export function NoteEditor({
   };
 
   const handleDeleteBlock = () => {
-    if (!blockContextMenu) {
-      return;
-    }
-
-    const targetIndex = blockContextMenu.blockIndex;
-    void applyDocumentMutation((document) => ({
-      ...document,
-      blocks: document.blocks.filter(
-        (_, index) => index !== targetIndex,
-      ) as NoteBlock[],
-    }));
+    deleteBlocksAtIndexes(getContextTargetIndexes());
   };
 
   const handleSlashCommand = useCallback((command: SlashCommand) => {
@@ -631,7 +873,12 @@ export function NoteEditor({
     };
 
     const syncSelectionClasses = () => {
-      getBlocks().forEach((block) => {
+      const blocks = getBlocks();
+      selectedBlockIndexesRef.current = blocks
+        .map((block, index) => (selectedBlocks.has(block) ? index : -1))
+        .filter((index) => index >= 0);
+
+      blocks.forEach((block) => {
         block.classList.toggle(
           "note-editor__block-selected",
           selectedBlocks.has(block),
@@ -645,6 +892,9 @@ export function NoteEditor({
 
     const setSelectedBlocks = (blocks: HTMLElement[]) => {
       window.getSelection()?.removeAllRanges();
+      if (blocks.length > 0 && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       selectedBlocks = new Set(blocks);
       syncSelectionClasses();
     };
@@ -653,6 +903,8 @@ export function NoteEditor({
       selectedBlocks = new Set();
       syncSelectionClasses();
     };
+
+    clearBlockSelectionRef.current = clearSelection;
 
     const removeSelectionBox = () => {
       selectionBox?.remove();
@@ -831,7 +1083,7 @@ export function NoteEditor({
           targetDropIndex < firstSelectedIndex ||
           targetDropIndex > lastSelectedIndex + 1
         ) {
-          const saved = NoteDocumentSchema.parse(await editor.save());
+          const saved = await saveEditorDocument(editor);
           const selectedIndexSet = new Set(selectedIndexes);
           const movedBlocks = saved.blocks.filter((_, index) =>
             selectedIndexSet.has(index),
@@ -1188,7 +1440,7 @@ export function NoteEditor({
             return;
           }
 
-          const saved = NoteDocumentSchema.parse(await editor.save());
+          const saved = await saveEditorDocument(editor);
           const noteBlock = saved.blocks[blockIndex];
           if (!noteBlock) {
             return;
@@ -1223,6 +1475,8 @@ export function NoteEditor({
         true,
       );
       resetInteractionState();
+      clearBlockSelectionRef.current = () => undefined;
+      selectedBlockIndexesRef.current = [];
     };
   });
 
@@ -1366,6 +1620,15 @@ export function NoteEditor({
 
       const editor = editorRef.current;
       editorRef.current = null;
+      pendingBlockFocusTimersRef.current.forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      pendingBlockFocusTimersRef.current = [];
+      if (shiftEnterChainTimerRef.current !== null) {
+        window.clearTimeout(shiftEnterChainTimerRef.current);
+        shiftEnterChainTimerRef.current = null;
+      }
+      shiftEnterInsertIndexRef.current = null;
       dragCleanupRef.current?.();
       dragCleanupRef.current = null;
 
@@ -1401,6 +1664,231 @@ export function NoteEditor({
         console.error("Failed to sync note document.", error);
       });
   }, [initialDocument]);
+
+  useEffect(() => {
+    if (readOnly || !selectionScopeRef.current || !holderRef.current) {
+      return;
+    }
+
+    const selectionScope = selectionScopeRef.current;
+    const holder = holderRef.current;
+
+    const isInsideScope = (target: EventTarget | null) =>
+      target instanceof Node && selectionScope.contains(target);
+
+    const isTypingTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        target.closest(
+          '[contenteditable="true"], textarea, input, select, math-field',
+        ),
+      );
+
+    const hasTextSelection = () =>
+      Boolean(window.getSelection()?.toString().trim());
+
+    const getTargetBlockIndex = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) {
+        return renderedDocumentRef.current.blocks.length - 1;
+      }
+
+      const block = target.closest<HTMLElement>(".ce-block");
+      if (!block) {
+        return renderedDocumentRef.current.blocks.length - 1;
+      }
+
+      return Array.from(holder.querySelectorAll<HTMLElement>(".ce-block")).indexOf(
+        block,
+      );
+    };
+
+    const getEventBlockIndex = (target: EventTarget | null) => {
+      const blockIndex = getTargetBlockIndex(target);
+      return blockIndex >= 0 ? blockIndex : renderedDocumentRef.current.blocks.length - 1;
+    };
+
+    const writeBlocksToClipboard = (
+      clipboardData: DataTransfer,
+      blocks: NoteBlock[],
+    ) => {
+      const document = {
+        time: Date.now(),
+        blocks,
+      };
+      const payload = JSON.stringify({
+        type: "taskmaster.noteBlocks",
+        version: 1,
+        blocks: cloneBlocksForInsert(blocks),
+      });
+
+      clipboardData.setData(NOTE_BLOCKS_CLIPBOARD_TYPE, payload);
+      clipboardData.setData("text/plain", createNoteContent(document).markdown);
+    };
+
+    const readBlocksFromClipboard = (clipboardData: DataTransfer) => {
+      const raw =
+        clipboardData.getData(NOTE_BLOCKS_CLIPBOARD_TYPE) ||
+        clipboardData.getData("text/plain");
+      if (!raw) {
+        return [];
+      }
+
+      try {
+        const payload = JSON.parse(raw) as {
+          type?: string;
+          blocks?: unknown;
+        };
+        if (
+          payload.type !== "taskmaster.noteBlocks" ||
+          !Array.isArray(payload.blocks)
+        ) {
+          return [];
+        }
+
+        return NoteDocumentSchema.parse({
+          time: Date.now(),
+          blocks: payload.blocks,
+        }).blocks;
+      } catch {
+        return [];
+      }
+    };
+
+    const getSelectedBlocks = () => {
+      const indexes = selectedBlockIndexesRef.current;
+      if (indexes.length === 0) {
+        return [];
+      }
+
+      return getBlocksAtIndexes(renderedDocumentRef.current, indexes);
+    };
+
+    const handleCopy = (event: ClipboardEvent) => {
+      if (hasTextSelection() || !event.clipboardData) {
+        return;
+      }
+
+      const blocks = getSelectedBlocks();
+      if (blocks.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      writeBlocksToClipboard(event.clipboardData, blocks);
+    };
+
+    const handleCut = (event: ClipboardEvent) => {
+      if (hasTextSelection() || !event.clipboardData) {
+        return;
+      }
+
+      const selectedIndexes = selectedBlockIndexesRef.current;
+      const blocks = getSelectedBlocks();
+      if (blocks.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      writeBlocksToClipboard(event.clipboardData, blocks);
+      deleteBlocksAtIndexes(selectedIndexes);
+    };
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const selectedIndexes = selectedBlockIndexesRef.current;
+      if (
+        !event.clipboardData ||
+        (selectedIndexes.length === 0 && !isInsideScope(event.target))
+      ) {
+        return;
+      }
+
+      if (selectedIndexes.length === 0 && isTypingTarget(event.target)) {
+        return;
+      }
+
+      const blocks = readBlocksFromClipboard(event.clipboardData);
+      if (blocks.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const targetIndex =
+        selectedIndexes.length > 0
+          ? Math.max(...selectedIndexes)
+          : getTargetBlockIndex(event.target);
+      insertBlocksAfterIndex(targetIndex, blocks);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const selectedIndexes = selectedBlockIndexesRef.current;
+      const hasSelectedBlocks = selectedIndexes.length > 0;
+      if (!hasSelectedBlocks && !isInsideScope(event.target)) {
+        return;
+      }
+
+      if (event.key === "Enter" && event.shiftKey && isInsideScope(event.target)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        insertEmptyParagraphAfterIndex(
+          shiftEnterInsertIndexRef.current ?? getEventBlockIndex(event.target),
+        );
+        return;
+      }
+
+      if (event.key !== "Shift") {
+        shiftEnterInsertIndexRef.current = null;
+      }
+
+      if (event.key === "Escape") {
+        if (hasSelectedBlocks) {
+          event.preventDefault();
+          clearBlockSelectionRef.current();
+        }
+        return;
+      }
+
+      if (!hasSelectedBlocks || hasTextSelection()) {
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        deleteBlocksAtIndexes(selectedIndexes);
+        return;
+      }
+
+      if (event.altKey && event.key === "ArrowUp") {
+        event.preventDefault();
+        moveBlocksAtIndexes(selectedIndexes, -1);
+        return;
+      }
+
+      if (event.altKey && event.key === "ArrowDown") {
+        event.preventDefault();
+        moveBlocksAtIndexes(selectedIndexes, 1);
+      }
+    };
+
+    window.addEventListener("copy", handleCopy, true);
+    window.addEventListener("cut", handleCut, true);
+    window.addEventListener("paste", handlePaste, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      window.removeEventListener("copy", handleCopy, true);
+      window.removeEventListener("cut", handleCut, true);
+      window.removeEventListener("paste", handlePaste, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [
+    cloneBlocksForInsert,
+    deleteBlocksAtIndexes,
+    getBlocksAtIndexes,
+    insertEmptyParagraphAfterIndex,
+    insertBlocksAfterIndex,
+    moveBlocksAtIndexes,
+    readOnly,
+  ]);
 
   useEffect(() => {
     if (readOnly || !holderRef.current) {
@@ -1461,11 +1949,21 @@ export function NoteEditor({
           ? selectionRect.bottom + 8
           : blockRect.top + 36;
 
-      setSlashCommandMenu({
-        x,
-        y,
-        blockIndex,
-        query: match[1] ?? "",
+      setSlashCommandMenu((current) => {
+        const query = match[1] ?? "";
+        const matches = getSlashCommandMatches(query);
+        const activeIndex =
+          current?.blockIndex === blockIndex && current.query === query
+            ? current.activeIndex
+            : 0;
+
+        return {
+          x,
+          y,
+          blockIndex,
+          query,
+          activeIndex: Math.min(activeIndex, Math.max(matches.length - 1, 0)),
+        };
       });
     };
 
@@ -1483,11 +1981,45 @@ export function NoteEditor({
         return;
       }
 
+      const matches = getSlashCommandMatches(slashCommandMenu.query);
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSlashCommandMenu((current) =>
+          current
+            ? {
+                ...current,
+                activeIndex:
+                  matches.length > 0
+                    ? (current.activeIndex + 1) % matches.length
+                    : 0,
+              }
+            : current,
+        );
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSlashCommandMenu((current) =>
+          current
+            ? {
+                ...current,
+                activeIndex:
+                  matches.length > 0
+                    ? (current.activeIndex - 1 + matches.length) % matches.length
+                    : 0,
+              }
+            : current,
+        );
+        return;
+      }
+
       if (event.key === "Enter") {
-        const firstCommand = getSlashCommandMatches(slashCommandMenu.query)[0];
-        if (firstCommand) {
+        const activeCommand = matches[slashCommandMenu.activeIndex] ?? matches[0];
+        if (activeCommand) {
           event.preventDefault();
-          handleSlashCommand(firstCommand);
+          handleSlashCommand(activeCommand);
         }
       }
     };
@@ -1559,11 +2091,17 @@ export function NoteEditor({
           }}
         >
           {getSlashCommandMatches(slashCommandMenu.query).length > 0 ? (
-            getSlashCommandMatches(slashCommandMenu.query).map((command) => (
+            getSlashCommandMatches(slashCommandMenu.query).map((command, index) => (
               <button
                 key={command.id}
                 type="button"
                 role="menuitem"
+                data-active={index === slashCommandMenu.activeIndex ? "true" : undefined}
+                className={
+                  index === slashCommandMenu.activeIndex
+                    ? "note-editor__slash-menu-active"
+                    : undefined
+                }
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => handleSlashCommand(command)}
               >

@@ -582,9 +582,13 @@ html.dark body {
 }
 
 .note-editor .ce-block:hover .ce-block__content::before,
-.note-editor .ce-block--focused .ce-block__content::before,
-.note-editor .ce-block--selected .ce-block__content::before {
+.note-editor .ce-block--focused .ce-block__content::before {
   background: var(--note-border-strong);
+}
+
+.note-editor .ce-block--selected .ce-block__content {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .note-editor:has(.ce-block [contenteditable="true"]:focus)
@@ -733,12 +737,13 @@ html.dark body {
 }
 
 .note-editor__slash-menu button:hover,
-.note-editor__slash-menu button:focus-visible {
+.note-editor__slash-menu button:focus-visible,
+.note-editor__slash-menu-active {
   background: var(--note-toolbar-hover);
   outline: none;
 }
 
-.note-editor__slash-menu button:first-child {
+.note-editor__slash-menu-active {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 

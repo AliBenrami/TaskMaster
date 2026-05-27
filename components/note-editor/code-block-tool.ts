@@ -141,7 +141,7 @@ export class CodeBlockTool implements BlockTool {
   }
 
   public validate(blockData: NoteCodeBlockData) {
-    return blockData.code.trim().length > 0;
+    return typeof blockData.code === "string";
   }
 
   public destroy() {
