@@ -192,7 +192,7 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Dashboard</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{greeting}</h1>
           <p className="mt-1 text-sm leading-7 text-muted-foreground">
-            Here's what's happening with your classes and notes.
+            Here&apos;s what&apos;s happening with your classes and notes.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">

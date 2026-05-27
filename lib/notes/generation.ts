@@ -1,6 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import type { NoteDocument } from "@/lib/notes/types";
 import { parseMarkdownToNoteDocument } from "@/lib/notes/parse-markdown";
 
 const AZURE_DOCUMENT_INTELLIGENCE_API_VERSION = "2024-11-30";

@@ -32,12 +32,6 @@ export type NoteEditorProps = {
 };
 
 const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024;
-const EMPTY_PARAGRAPH_BLOCK: NoteBlock = {
-  type: "paragraph",
-  data: {
-    text: "<br>",
-  },
-};
 const NOTE_BLOCKS_CLIPBOARD_TYPE = "application/x-taskmaster-note-blocks";
 
 type BlockContextMenuState = {
@@ -777,27 +771,6 @@ export function NoteEditor({
       blocks: document.blocks.map((block, index) =>
         targetIndexSet.has(index) ? convertBlock(block, target) : block,
       ) as NoteBlock[],
-    }));
-  };
-
-  const handleMoveBlock = (direction: -1 | 1) => {
-    moveBlocksAtIndexes(getContextTargetIndexes(), direction);
-  };
-
-  const handleInsertBlockBelow = () => {
-    const targetIndexes = getContextTargetIndexes();
-    if (targetIndexes.length === 0) {
-      return;
-    }
-
-    const targetIndex = Math.max(...targetIndexes);
-    void applyDocumentMutation((document) => ({
-      ...document,
-      blocks: [
-        ...document.blocks.slice(0, targetIndex + 1),
-        { ...EMPTY_PARAGRAPH_BLOCK, data: { ...EMPTY_PARAGRAPH_BLOCK.data } },
-        ...document.blocks.slice(targetIndex + 1),
-      ] as NoteBlock[],
     }));
   };
 

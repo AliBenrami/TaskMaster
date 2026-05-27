@@ -13,9 +13,8 @@ export type DashboardEvent = {
   timeText: string | null;
 };
 
-function getCountdown(dueAt: string | null): string {
-  if (!dueAt) return "";
-  const diff = new Date(dueAt).getTime() - Date.now();
+function getCountdown(dueTime: number, nowTime: number): string {
+  const diff = dueTime - nowTime;
   if (diff <= 0) return "Now";
   const totalMins = Math.floor(diff / 60000);
   if (totalMins < 60) return `in ${totalMins}m`;
@@ -60,15 +59,22 @@ function CategoryIcon({ category }: { category: string }) {
 }
 
 function EventRow({ event }: { event: DashboardEvent }) {
-  const [countdown, setCountdown] = useState(() => getCountdown(event.dueAt));
+  const [nowTime, setNowTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!event.dueAt) return;
-    const id = setInterval(() => setCountdown(getCountdown(event.dueAt)), 30000);
-    return () => clearInterval(id);
+    const updateNow = () => setNowTime(Date.now());
+    const timeoutId = window.setTimeout(updateNow, 0);
+    const intervalId = window.setInterval(updateNow, 30000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
   }, [event.dueAt]);
 
-  const isPast = event.dueAt ? new Date(event.dueAt).getTime() < Date.now() : false;
+  const dueTime = event.dueAt ? new Date(event.dueAt).getTime() : null;
+  const countdown = dueTime !== null && nowTime !== null ? getCountdown(dueTime, nowTime) : "";
+  const isPast = dueTime !== null && nowTime !== null ? dueTime < nowTime : false;
   const isDue = event.category.toLowerCase().includes("assign") || event.category.toLowerCase().includes("due") || event.category.toLowerCase().includes("exam") || event.category.toLowerCase().includes("quiz");
 
   return (

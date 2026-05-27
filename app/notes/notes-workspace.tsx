@@ -708,7 +708,6 @@ export function NotesWorkspace({
   async function handleBulkDelete() {
     if (sidebarSelectedIds.size === 0) return;
     const ids = [...sidebarSelectedIds];
-    const deleted = notes.filter((n) => ids.includes(n.id));
 
     setNotes((current) => current.filter((n) => !ids.includes(n.id)));
     if (selectedNote && ids.includes(selectedNote.id)) {
