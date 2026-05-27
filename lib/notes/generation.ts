@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import type { NoteBlock, NoteDocument } from "@/lib/notes/types";
+import { parseMarkdownToNoteDocument } from "@/lib/notes/parse-markdown";
 
 const AZURE_DOCUMENT_INTELLIGENCE_API_VERSION = "2024-11-30";
 const EMBEDDING_DIMENSIONS = 768;
@@ -270,66 +270,7 @@ export async function embedGeneratedTopics(topics: Array<{ title: string; markdo
   });
 }
 
-function createBlockId() {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 10);
-}
-
-function createParagraphBlock(lines: string[]): NoteBlock {
-  return {
-    id: createBlockId(),
-    type: "paragraph",
-    data: {
-      text: lines.join("<br>"),
-    },
-  };
-}
-
-export function markdownToNoteDocument(markdown: string): NoteDocument {
-  const blocks: NoteBlock[] = [];
-  const paragraphLines: string[] = [];
-
-  function flushParagraph() {
-    if (paragraphLines.length === 0) {
-      return;
-    }
-
-    blocks.push(createParagraphBlock([...paragraphLines]));
-    paragraphLines.length = 0;
-  }
-
-  for (const rawLine of markdown.split(/\r?\n/)) {
-    const line = rawLine.trimEnd();
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-
-    if (headingMatch) {
-      flushParagraph();
-      blocks.push({
-        id: createBlockId(),
-        type: "header",
-        data: {
-          text: headingMatch[2].trim(),
-          level: Math.min(6, headingMatch[1].length) as 1 | 2 | 3 | 4 | 5 | 6,
-        },
-      });
-      continue;
-    }
-
-    if (line.trim().length === 0) {
-      flushParagraph();
-      continue;
-    }
-
-    paragraphLines.push(line);
-  }
-
-  flushParagraph();
-
-  return {
-    time: Date.now(),
-    version: "2.31.5",
-    blocks,
-  };
-}
+export { parseMarkdownToNoteDocument as markdownToNoteDocument };
 
 export async function generateTopicNotesFromFile(params: {
   fileBuffer: Buffer;

@@ -144,4 +144,30 @@ describe("serializeNoteDocumentToMarkdown", () => {
       ].join("\n"),
     );
   });
+
+  it("serializes blocks in the current document order", () => {
+    const document: NoteDocument = {
+      time: 1,
+      blocks: [
+        {
+          id: "second",
+          type: "paragraph",
+          data: {
+            text: "Second block moved first",
+          },
+        },
+        {
+          id: "first",
+          type: "paragraph",
+          data: {
+            text: "First block moved second",
+          },
+        },
+      ],
+    };
+
+    expect(serializeNoteDocumentToMarkdown(document)).toBe(
+      "Second block moved first\n\nFirst block moved second",
+    );
+  });
 });

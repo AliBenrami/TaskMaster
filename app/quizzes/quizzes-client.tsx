@@ -17,11 +17,20 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
-import { PageHeader } from "@/components/ui/page-header";
 import { cx } from "@/lib/utils";
-import type { QuizDifficulty, QuizQuestion, QuizQuestionType } from "@/lib/quizzes/gemini";
+import type {
+  QuizDifficulty,
+  QuizQuestion,
+  QuizQuestionType,
+} from "@/lib/quizzes/gemini";
 
 type QuizMode = "infinite" | "exam";
 
@@ -67,7 +76,9 @@ function formatTimer(seconds: number) {
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as T & { error?: string };
+  const payload = (await response.json().catch(() => null)) as T & {
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(payload?.error || "Request failed");
   }
@@ -89,10 +100,18 @@ function MarkdownText({
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p: ({ children }) => <p>{children}</p>,
-          ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
-          ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+          ul: ({ children }) => (
+            <ul className="ml-5 list-disc space-y-1">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="ml-5 list-decimal space-y-1">{children}</ol>
+          ),
           li: ({ children }) => <li>{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">
+              {children}
+            </strong>
+          ),
           em: ({ children }) => <em className="italic">{children}</em>,
           code: ({ children, className: codeClassName }) => (
             <code
@@ -110,17 +129,25 @@ function MarkdownText({
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-border pl-3 text-muted-foreground">{children}</blockquote>
+            <blockquote className="border-l-4 border-border pl-3 text-muted-foreground">
+              {children}
+            </blockquote>
           ),
           table: ({ children }) => (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">{children}</table>
+              <table className="w-full border-collapse text-sm">
+                {children}
+              </table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border border-border bg-surface-muted px-2 py-1 text-left font-semibold">{children}</th>
+            <th className="border border-border bg-surface-muted px-2 py-1 text-left font-semibold">
+              {children}
+            </th>
           ),
-          td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
+          td: ({ children }) => (
+            <td className="border border-border px-2 py-1">{children}</td>
+          ),
         }}
       >
         {markdown}
@@ -130,12 +157,17 @@ function MarkdownText({
 }
 
 export function QuizzesClient({ notes }: QuizzesClientProps) {
-  const embeddedNotes = useMemo(() => notes.filter((note) => note.hasEmbedding), [notes]);
+  const embeddedNotes = useMemo(
+    () => notes.filter((note) => note.hasEmbedding),
+    [notes],
+  );
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [mode, setMode] = useState<QuizMode>("infinite");
   const [timeMinutes, setTimeMinutes] = useState(20);
   const [questionCount, setQuestionCount] = useState(10);
-  const [questionTypes, setQuestionTypes] = useState<QuizQuestionType[]>(["multiple_choice"]);
+  const [questionTypes, setQuestionTypes] = useState<QuizQuestionType[]>([
+    "multiple_choice",
+  ]);
   const [difficulty, setDifficulty] = useState<QuizDifficulty>("medium");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, AnswerState>>({});
@@ -148,12 +180,23 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
   const [error, setError] = useState<string | null>(null);
 
   const currentQuestion = questions[currentIndex];
-  const currentAnswer = currentQuestion ? answers[currentQuestion.id]?.answer ?? "" : "";
-  const currentEvaluation = currentQuestion ? answers[currentQuestion.id]?.evaluation : undefined;
+  const currentAnswer = currentQuestion
+    ? (answers[currentQuestion.id]?.answer ?? "")
+    : "";
+  const currentEvaluation = currentQuestion
+    ? answers[currentQuestion.id]?.evaluation
+    : undefined;
   const examExpired = mode === "exam" && started && remainingSeconds <= 0;
-  const canStart = selectedNoteIds.length > 0 && questionTypes.length > 0 && embeddedNotes.length > 0;
-  const answeredCount = Object.values(answers).filter((answer) => answer.evaluation).length;
-  const correctCount = Object.values(answers).filter((answer) => answer.evaluation?.correct).length;
+  const canStart =
+    selectedNoteIds.length > 0 &&
+    questionTypes.length > 0 &&
+    embeddedNotes.length > 0;
+  const answeredCount = Object.values(answers).filter(
+    (answer) => answer.evaluation,
+  ).length;
+  const correctCount = Object.values(answers).filter(
+    (answer) => answer.evaluation?.correct,
+  ).length;
 
   useEffect(() => {
     if (!started || finished || mode !== "exam" || remainingSeconds <= 0) {
@@ -207,13 +250,19 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
         }),
       );
 
-      setQuestions((current) => (append ? [...current, ...payload.questions] : payload.questions));
+      setQuestions((current) =>
+        append ? [...current, ...payload.questions] : payload.questions,
+      );
       if (!append) {
         setCurrentIndex(0);
       }
       return true;
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Quiz generation failed");
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Quiz generation failed",
+      );
       return false;
     } finally {
       setIsGenerating(false);
@@ -226,7 +275,9 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
     setQuestions([]);
     setCurrentIndex(0);
     setRemainingSeconds(Math.max(1, timeMinutes) * 60);
-    const generated = await generateQuestions(mode === "exam" ? questionCount : 1);
+    const generated = await generateQuestions(
+      mode === "exam" ? questionCount : 1,
+    );
     setStarted(generated);
   }
 
@@ -257,7 +308,11 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
         },
       }));
     } catch (evaluationError) {
-      setError(evaluationError instanceof Error ? evaluationError.message : "Answer evaluation failed");
+      setError(
+        evaluationError instanceof Error
+          ? evaluationError.message
+          : "Answer evaluation failed",
+      );
     } finally {
       setIsEvaluating(false);
     }
@@ -300,37 +355,28 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <PageHeader
-        eyebrow="Quizzing"
-        title="Quizzes"
-        description="Create note-driven quizzes from stored note embeddings and content, then have Gemini evaluate each answer."
-        actions={
-          started ? (
-            <Button type="button" variant="outline" leadingIcon={<RotateCcw className="size-4" />} onClick={resetQuiz}>
-              Reset
-            </Button>
-          ) : null
-        }
-      />
-
+    <main className="flex h-full flex-col gap-4">
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
+        <div className="shrink-0 rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
           {error}
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
+      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <Card className="flex min-h-0 flex-col overflow-hidden">
+          <CardHeader className="shrink-0">
             <CardTitle>Quiz setup</CardTitle>
-            <CardDescription>Select notes, question format, difficulty, and quiz mode.</CardDescription>
+            <CardDescription>
+              Select notes, question format, difficulty, and quiz mode.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="min-h-0 flex-1 space-y-6 overflow-y-auto">
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-medium text-foreground">Notes</h2>
-                <Badge variant="outline">{selectedNoteIds.length} selected</Badge>
+                <Badge variant="outline">
+                  {selectedNoteIds.length} selected
+                </Badge>
               </div>
               <div className="max-h-72 space-y-2 overflow-auto pr-1">
                 {notes.length === 0 ? (
@@ -356,9 +402,13 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                         onChange={() => toggleNote(note.id)}
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-foreground">{note.title}</span>
+                        <span className="block truncate font-medium text-foreground">
+                          {note.title}
+                        </span>
                         <span className="text-xs text-muted-foreground">
-                          {note.hasEmbedding ? "Embedding ready" : "No embedding stored"}
+                          {note.hasEmbedding
+                            ? "Embedding ready"
+                            : "No embedding stored"}
                         </span>
                       </span>
                     </label>
@@ -411,7 +461,9 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                     max={240}
                     value={timeMinutes}
                     disabled={started}
-                    onChange={(event) => setTimeMinutes(Number(event.target.value))}
+                    onChange={(event) =>
+                      setTimeMinutes(Number(event.target.value))
+                    }
                   />
                 </label>
                 <label className="space-y-2 text-sm font-medium text-foreground">
@@ -422,17 +474,24 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                     max={25}
                     value={questionCount}
                     disabled={started}
-                    onChange={(event) => setQuestionCount(Number(event.target.value))}
+                    onChange={(event) =>
+                      setQuestionCount(Number(event.target.value))
+                    }
                   />
                 </label>
               </section>
             ) : null}
 
             <section className="space-y-3">
-              <h2 className="text-sm font-medium text-foreground">Question types</h2>
+              <h2 className="text-sm font-medium text-foreground">
+                Question types
+              </h2>
               <div className="space-y-2">
                 {questionTypeOptions.map((option) => (
-                  <label key={option.value} className="flex items-center gap-3 text-sm text-foreground">
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-3 text-sm text-foreground"
+                  >
                     <input
                       type="checkbox"
                       className="size-4 accent-[var(--accent)]"
@@ -447,7 +506,9 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-sm font-medium text-foreground">Difficulty</h2>
+              <h2 className="text-sm font-medium text-foreground">
+                Difficulty
+              </h2>
               <div className="grid grid-cols-3 gap-2">
                 {difficultyOptions.map((option) => (
                   <button
@@ -472,7 +533,13 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
               type="button"
               className="w-full"
               disabled={!canStart || started || isGenerating}
-              leadingIcon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+              leadingIcon={
+                isGenerating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Play className="size-4" />
+                )
+              }
               onClick={startQuiz}
             >
               Start quiz
@@ -480,8 +547,8 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <Card className="flex min-h-0 flex-col overflow-hidden">
+          <CardHeader className="shrink-0 gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <CardTitle>Question workspace</CardTitle>
               <CardDescription>
@@ -509,14 +576,17 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
               </div>
             ) : null}
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-h-0 flex-1 overflow-y-auto">
             {!started ? (
               <div className="flex min-h-96 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-surface-muted px-6 text-center">
                 <Brain className="size-10 text-muted-foreground" />
                 <div className="space-y-1">
-                  <h2 className="text-base font-semibold text-foreground">Ready when your notes are selected</h2>
+                  <h2 className="text-base font-semibold text-foreground">
+                    Ready when your notes are selected
+                  </h2>
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                    Generated questions use the embeddings stored on the selected note rows, plus their readable note content.
+                    Generated questions use the embeddings stored on the
+                    selected note rows, plus their readable note content.
                   </p>
                 </div>
               </div>
@@ -528,9 +598,12 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
             ) : finished ? (
               <div className="flex min-h-96 flex-col justify-center gap-5">
                 <div className="space-y-2 text-center">
-                  <h2 className="text-xl font-semibold text-foreground">Exam complete</h2>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Exam complete
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Score: {correctCount}/{answeredCount || questions.length} correct
+                    Score: {correctCount}/{answeredCount || questions.length}{" "}
+                    correct
                   </p>
                 </div>
                 <div className="grid gap-2">
@@ -546,7 +619,10 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                           setCurrentIndex(index);
                         }}
                       >
-                        <MarkdownText markdown={question.prompt} className="truncate text-sm" />
+                        <MarkdownText
+                          markdown={question.prompt}
+                          className="truncate text-sm"
+                        />
                         {evaluation ? (
                           evaluation.correct ? (
                             <CheckCircle2 className="size-4 shrink-0 text-green-600" />
@@ -565,7 +641,9 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
               <div className="space-y-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="accent">Question {currentIndex + 1}</Badge>
-                  <Badge variant="outline">{currentQuestion.type.replace("_", " ")}</Badge>
+                  <Badge variant="outline">
+                    {currentQuestion.type.replace("_", " ")}
+                  </Badge>
                   {currentQuestion.sourceNoteTitles.map((title) => (
                     <Badge key={title} variant="neutral">
                       {title}
@@ -578,14 +656,17 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                     markdown={currentQuestion.prompt}
                     className="space-y-3 text-xl font-semibold leading-8"
                   />
-                  {currentQuestion.type === "multiple_choice" || currentQuestion.type === "true_false" ? (
+                  {currentQuestion.type === "multiple_choice" ||
+                  currentQuestion.type === "true_false" ? (
                     <div className="grid gap-2">
                       {(currentQuestion.choices ?? []).map((choice) => (
                         <label
                           key={choice}
                           className={cx(
                             "flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-3 text-sm transition hover:bg-surface-muted",
-                            currentAnswer === choice ? "border-accent bg-accent-soft text-accent" : "text-foreground",
+                            currentAnswer === choice
+                              ? "border-accent bg-accent-soft text-accent"
+                              : "text-foreground",
                           )}
                         >
                           <input
@@ -621,13 +702,19 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                     )}
                   >
                     <div className="font-medium">
-                      {currentEvaluation.correct ? "Correct" : "Needs work"} · Score{" "}
-                      {Math.round(currentEvaluation.score * 100)}%
+                      {currentEvaluation.correct ? "Correct" : "Needs work"} ·
+                      Score {Math.round(currentEvaluation.score * 100)}%
                     </div>
-                    <MarkdownText markdown={currentEvaluation.feedback} className="mt-1 space-y-2" />
+                    <MarkdownText
+                      markdown={currentEvaluation.feedback}
+                      className="mt-1 space-y-2"
+                    />
                     <div className="mt-2 space-y-1">
                       <div className="font-medium">Ideal answer:</div>
-                      <MarkdownText markdown={currentEvaluation.idealAnswer} className="space-y-2" />
+                      <MarkdownText
+                        markdown={currentEvaluation.idealAnswer}
+                        className="space-y-2"
+                      />
                     </div>
                   </div>
                 ) : examExpired ? (
@@ -644,7 +731,9 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                           type="button"
                           variant="outline"
                           disabled={currentIndex === 0}
-                          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+                          onClick={() =>
+                            setCurrentIndex((index) => Math.max(0, index - 1))
+                          }
                         >
                           Previous
                         </Button>
@@ -652,7 +741,11 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                           type="button"
                           variant="outline"
                           disabled={currentIndex >= questions.length - 1}
-                          onClick={() => setCurrentIndex((index) => Math.min(questions.length - 1, index + 1))}
+                          onClick={() =>
+                            setCurrentIndex((index) =>
+                              Math.min(questions.length - 1, index + 1),
+                            )
+                          }
                         >
                           Next
                         </Button>
@@ -663,8 +756,17 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!currentAnswer.trim() || Boolean(currentEvaluation) || isEvaluating || examExpired}
-                      leadingIcon={isEvaluating ? <Loader2 className="size-4 animate-spin" /> : undefined}
+                      disabled={
+                        !currentAnswer.trim() ||
+                        Boolean(currentEvaluation) ||
+                        isEvaluating ||
+                        examExpired
+                      }
+                      leadingIcon={
+                        isEvaluating ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : undefined
+                      }
                       onClick={evaluateCurrentAnswer}
                     >
                       Check answer
@@ -673,7 +775,11 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
                       <Button
                         type="button"
                         disabled={!currentEvaluation || isGenerating}
-                        leadingIcon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : undefined}
+                        leadingIcon={
+                          isGenerating ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : undefined
+                        }
                         onClick={nextInfiniteQuestion}
                       >
                         Next question
@@ -688,6 +794,19 @@ export function QuizzesClient({ notes }: QuizzesClientProps) {
               </div>
             ) : null}
           </CardContent>
+
+          <div className="shrink-0 flex items-center justify-between gap-3">
+            {started ? (
+              <Button
+                type="button"
+                variant="outline"
+                leadingIcon={<RotateCcw className="size-4" />}
+                onClick={resetQuiz}
+              >
+                Reset
+              </Button>
+            ) : null}
+          </div>
         </Card>
       </div>
     </main>

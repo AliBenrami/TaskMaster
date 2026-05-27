@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 import "mathlive/fonts.css";
 import "mathlive/static.css";
@@ -55,6 +56,18 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
         />
         {children}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--surface-elevated)",
+              color: "var(--foreground)",
+              border: "1px solid var(--border)",
+              borderRadius: "0.5rem",
+              fontSize: "0.875rem",
+            },
+          }}
+        />
       </body>
     </html>
   );

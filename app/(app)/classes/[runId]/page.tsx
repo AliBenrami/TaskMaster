@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { getButtonClassName } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
 import { requireServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
@@ -113,22 +112,19 @@ export default async function ClassDetailPage(props: {
       : "bg-surface-muted text-muted-foreground hover:text-foreground";
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Class detail"
-        title={preview.course.title}
-        description={preview.course.studentSummary}
-        actions={
-          <>
-            <Link href={`/notes?classId=${preview.course.id}&new=1`} className={getButtonClassName("primary")}>
-              New note in this class
-            </Link>
-            <Link href={`/notes?classId=${preview.course.id}`} className={getButtonClassName("outline")}>
-              Manage notes
-            </Link>
-          </>
-        }
-      />
+    <div className="flex h-full flex-col gap-4">
+      <div className="shrink-0 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{preview.course.title}</h1>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/notes?classId=${preview.course.id}&new=1`} className={getButtonClassName("primary")}>
+            New note in this class
+          </Link>
+          <Link href={`/notes?classId=${preview.course.id}`} className={getButtonClassName("outline")}>
+            Manage notes
+          </Link>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {preview.course.courseCode ? <Badge variant="accent">{preview.course.courseCode}</Badge> : null}
@@ -149,7 +145,9 @@ export default async function ClassDetailPage(props: {
           </Link>
         ))}
       </div>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {currentTab === "overview" ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px]">
           <Card>
@@ -390,6 +388,7 @@ export default async function ClassDetailPage(props: {
           />
         )
       ) : null}
+      </div>
     </div>
   );
 }

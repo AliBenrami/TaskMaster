@@ -8,6 +8,7 @@ export type NoteRecord = {
   title: string;
   classId: string | null;
   content: unknown;
+  markdown?: string | null;
   sourceType: NoteSourceType;
   fileName: string | null;
   mimeType: string | null;
@@ -121,6 +122,8 @@ function normalizeNoteGeneration(value: unknown, noteEmbedding: number[] | null)
 export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
   const document = normalizeNoteDocument(record.content);
   const embedding = normalizeEmbedding(record.embedding);
+  const content = createNoteContent(document);
+  const markdown = typeof record.markdown === "string" ? record.markdown : content.markdown;
 
   return {
     id: record.id,
@@ -133,7 +136,10 @@ export function noteRecordToWorkspaceNote(record: NoteRecord): WorkspaceNote {
     embedding,
     createdAt: normalizeDate(record.createdAt),
     updatedAt: normalizeDate(record.updatedAt),
-    content: createNoteContent(document),
+    content: {
+      markdown,
+      document,
+    },
     generation: normalizeNoteGeneration(record.content, embedding),
   };
 }
