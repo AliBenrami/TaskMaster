@@ -52,6 +52,7 @@ describe("QuizzesClient", () => {
   it("renders library as quiz dashboard with stats and empty state", () => {
     render(<QuizzesClient notes={notes} initialQuizzes={[]} initialAttempts={[]} />);
 
+    expect(screen.getByTestId("quizzes-one-page")).toHaveClass("h-full", "overflow-hidden");
     expect(screen.getByRole("heading", { name: "My Quizzes" })).toBeInTheDocument();
     expect(screen.getByText("0 quizzes")).toBeInTheDocument();
     expect(screen.getByText("0 questions")).toBeInTheDocument();
@@ -90,7 +91,7 @@ describe("QuizzesClient", () => {
 
     await user.click(screen.getByRole("button", { name: /add question/i }));
 
-    expect(screen.getAllByLabelText("Prompt")).toHaveLength(2);
-    expect(screen.getByText("Question 2")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Prompt")).toHaveLength(1);
+    expect(screen.getAllByText("Question 2").length).toBeGreaterThan(0);
   });
 });

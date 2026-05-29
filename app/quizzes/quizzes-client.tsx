@@ -195,6 +195,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   const [difficulty, setDifficulty] = useState<QuizDifficulty>("medium");
   const [draftTitle, setDraftTitle] = useState("");
   const [draftQuestions, setDraftQuestions] = useState<QuizQuestion[]>([]);
+  const [draftQuestionIndex, setDraftQuestionIndex] = useState(0);
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
 
   const [answers, setAnswers] = useState<Record<string, QuizAttemptAnswer>>({});
@@ -218,6 +219,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     activeAttempts[0] ??
     null;
   const currentQuestion = activeQuiz?.questions[currentIndex] ?? null;
+  const activeDraftQuestion = draftQuestions[draftQuestionIndex] ?? null;
   const currentAnswer = currentQuestion ? answers[currentQuestion.id]?.answer ?? "" : "";
   const currentEvaluation = currentQuestion ? answers[currentQuestion.id]?.evaluation : undefined;
   const canGenerate = selectedNoteIds.length > 0 && questionTypes.length > 0 && embeddedNotes.length > 0 && !isGenerating;
@@ -235,6 +237,10 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     return () => window.clearInterval(timer);
   }, [activeQuiz?.mode, isFinishing, remainingSeconds, view]);
 
+  useEffect(() => {
+    setDraftQuestionIndex((index) => Math.min(Math.max(index, 0), Math.max(draftQuestions.length - 1, 0)));
+  }, [draftQuestions.length]);
+
   function resetCreateForm() {
     setSelectedNoteIds([]);
     setMode("practice");
@@ -244,6 +250,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     setDifficulty("medium");
     setDraftTitle("");
     setDraftQuestions([]);
+    setDraftQuestionIndex(0);
     setEditingQuizId(null);
   }
 
@@ -293,6 +300,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
       const selectedTitles = notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
       setDraftQuestions(payload.questions);
+      setDraftQuestionIndex(0);
       setDraftTitle(selectedTitles.length === 1 ? `${selectedTitles[0]} quiz` : "Generated note quiz");
       setView("preview");
     } catch (generationError) {
@@ -352,11 +360,13 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
   function removeDraftQuestion(index: number) {
     setDraftQuestions((current) => current.filter((_, questionIndex) => questionIndex !== index));
+    setDraftQuestionIndex((current) => Math.max(0, Math.min(current, draftQuestions.length - 2)));
   }
 
   function addDraftQuestion() {
     const selectedTitles = notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
     setDraftQuestions((current) => [...current, makeDraftQuestion(selectedTitles)]);
+    setDraftQuestionIndex(draftQuestions.length);
   }
 
   async function saveDraftQuiz() {
@@ -431,6 +441,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     setDifficulty(quiz.difficulty);
     setDraftTitle(quiz.title);
     setDraftQuestions(quiz.questions);
+    setDraftQuestionIndex(0);
     setEditingQuizId(quiz.id);
     setView("preview");
     setError(null);
@@ -596,8 +607,8 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     const totalQuestions = quizzes.reduce((sum, quiz) => sum + quiz.questionCount, 0);
 
     return (
-      <section className="space-y-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <section className="flex h-full min-h-0 flex-col gap-5">
+        <div className="flex shrink-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="flex flex-wrap gap-2">
             <StatPill>{quizzes.length} quizzes</StatPill>
             <StatPill>{totalQuestions} questions</StatPill>
@@ -608,7 +619,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         </div>
 
         {quizzes.length === 0 ? (
-          <div className="flex min-h-[28rem] items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface/70 p-8">
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface/70 p-8">
             <div className="flex max-w-sm flex-col items-center text-center">
               <FileQuestion className="mb-5 size-12 text-muted-foreground" />
               <h2 className="text-lg font-semibold text-foreground">No saved quizzes</h2>
@@ -616,7 +627,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 xl:grid-cols-2">
             {quizzes.map((quiz) => {
               const quizAttempts = attempts.filter((attempt) => attempt.quizId === quiz.id);
               const lastAttempt = quizAttempts[0];
@@ -654,7 +665,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     <div className="space-y-2">
                       <h3 className="text-sm font-medium text-foreground">Questions</h3>
                       <div className="grid gap-2">
-                        {quiz.questions.slice(0, 3).map((question, index) => (
+                        {quiz.questions.slice(0, 2).map((question, index) => (
                           <button
                             key={question.id}
                             type="button"
@@ -742,8 +753,8 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
   function renderCreate() {
     return (
-      <Card>
-        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="flex h-full min-h-0 flex-col">
+        <CardHeader className="shrink-0 gap-4 py-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-xl">Create Quiz</CardTitle>
             <CardDescription>Choose note context and quiz settings.</CardDescription>
@@ -753,15 +764,15 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <StepPill>Preview</StepPill>
           </div>
         </CardHeader>
-        <CardContent className="space-y-8">
-          <section className="space-y-4">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-5 pb-5">
+          <section className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-foreground">Notes</h2>
               <Badge variant="outline" className="text-sm">
                 {selectedNoteIds.length} selected
               </Badge>
             </div>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1 lg:grid-cols-2">
               {notes.length === 0 ? (
                 <p className="rounded-lg border border-border bg-surface-muted px-3 py-3 text-sm text-muted-foreground">
                   Create or upload notes first.
@@ -795,15 +806,15 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </div>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+          <section className="grid shrink-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-foreground">Question types</h2>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-2 md:grid-cols-3">
                 {questionTypeOptions.map((option) => (
                   <label
                     key={option.value}
                     className={cx(
-                      "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm transition hover:bg-surface-muted",
+                      "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm transition hover:bg-surface-muted",
                       questionTypes.includes(option.value) ? "border-accent bg-accent-soft/60 text-accent" : "",
                     )}
                   >
@@ -817,13 +828,13 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                   </label>
                 ))}
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2 md:grid-cols-2">
                 {modeOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
                     className={cx(
-                      "rounded-lg border px-4 py-3 text-left text-sm transition",
+                    "rounded-lg border px-3 py-2 text-left text-sm transition",
                       mode === option.value
                         ? "border-accent bg-accent-soft text-accent"
                         : "border-border bg-surface hover:bg-surface-muted",
@@ -837,7 +848,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Difficulty
                 <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
@@ -859,7 +870,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </div>
           </section>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
               disabled={!canGenerate}
@@ -879,8 +890,8 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
   function renderPreview() {
     return (
-      <Card>
-        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="flex h-full min-h-0 flex-col">
+        <CardHeader className="shrink-0 gap-4 py-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-xl">Preview Quiz</CardTitle>
             <CardDescription>Edit before saving.</CardDescription>
@@ -890,14 +901,13 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <StepPill active>Preview</StepPill>
           </div>
         </CardHeader>
-        <CardContent className="space-y-7">
-          <label className="block space-y-2 text-sm font-medium text-foreground">
-            Quiz name
-            <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-          </label>
-
-          <section className="grid gap-4 lg:grid-cols-4">
-            <label className="space-y-2 text-sm font-medium text-foreground">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
+          <section className="grid shrink-0 gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_160px_140px]">
+            <label className="space-y-1.5 text-sm font-medium text-foreground">
+              Quiz name
+              <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium text-foreground">
               Mode
               <Select value={mode} onChange={(event) => setMode(event.target.value as QuizMode)}>
                 {modeOptions.map((option) => (
@@ -907,7 +917,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                 ))}
               </Select>
             </label>
-            <label className="space-y-2 text-sm font-medium text-foreground">
+            <label className="space-y-1.5 text-sm font-medium text-foreground">
               Difficulty
               <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
                 {difficultyOptions.map((option) => (
@@ -917,62 +927,83 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                 ))}
               </Select>
             </label>
-            <label className="space-y-2 text-sm font-medium text-foreground">
-              Time limit
+            <label className="space-y-1.5 text-sm font-medium text-foreground">
+              Time
               <Input min={1} max={240} type="number" disabled={mode !== "exam"} value={timeMinutes} onChange={(event) => setTimeMinutes(Number(event.target.value))} />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-foreground">
-              Question types
-              <Input
-                value={questionTypes.map((type) => type.replace("_", " ")).join(", ")}
-                readOnly
-                className="text-muted-foreground"
-              />
             </label>
           </section>
 
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-foreground">Questions</h2>
-              <Button type="button" variant="outline" leadingIcon={<Plus className="size-4" />} onClick={addDraftQuestion}>
-                Add question
-              </Button>
-            </div>
-
-            {draftQuestions.length === 0 ? (
-              <div className="rounded-[var(--radius-xl)] border border-dashed border-border bg-surface-muted px-6 py-10 text-center">
-                <FileQuestion className="mx-auto mb-3 size-8 text-muted-foreground" />
-                <h3 className="font-semibold text-foreground">No questions in preview</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Add a question or go back to generate from context.</p>
+          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <aside className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-3">
+                <h2 className="text-sm font-semibold text-foreground">Questions</h2>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="Add question"
+                  leadingIcon={<Plus className="size-4" />}
+                  onClick={addDraftQuestion}
+                >
+                  Add
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-5">
-                {draftQuestions.map((question, index) => (
-                  <div key={question.id} className="rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-5">
-                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                      <Badge variant="outline">Question {index + 1}</Badge>
-                      <Button type="button" size="sm" variant="ghost" leadingIcon={<Trash2 className="size-4" />} onClick={() => removeDraftQuestion(index)}>
-                        Remove
-                      </Button>
-                    </div>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+                {draftQuestions.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center">
+                    <FileQuestion className="mx-auto mb-2 size-7 text-muted-foreground" />
+                    <p className="text-sm font-medium text-foreground">No questions</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Add or generate from context.</p>
+                  </div>
+                ) : (
+                  draftQuestions.map((question, index) => (
+                    <button
+                      key={question.id}
+                      type="button"
+                      className={cx(
+                        "w-full rounded-lg border px-3 py-2 text-left text-sm transition",
+                        draftQuestionIndex === index
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-border bg-surface hover:bg-surface-muted",
+                      )}
+                      onClick={() => setDraftQuestionIndex(index)}
+                    >
+                      <span className="block font-semibold">Question {index + 1}</span>
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        {question.prompt || question.type.replace("_", " ")}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </aside>
 
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <label className="space-y-2 text-sm font-medium text-foreground">
-                        Prompt
-                        <Textarea rows={7} value={question.prompt} onChange={(event) => updateDraftQuestion(index, { prompt: event.target.value })} />
-                      </label>
-                      <label className="space-y-2 text-sm font-medium text-foreground">
-                        Correct answer
-                        <Textarea rows={7} value={question.correctAnswer} onChange={(event) => updateDraftQuestion(index, { correctAnswer: event.target.value })} />
-                      </label>
-                    </div>
+            {activeDraftQuestion ? (
+              <div className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-4">
+                <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+                  <Badge variant="outline">Question {draftQuestionIndex + 1}</Badge>
+                  <Button type="button" size="sm" variant="ghost" leadingIcon={<Trash2 className="size-4" />} onClick={() => removeDraftQuestion(draftQuestionIndex)}>
+                    Remove
+                  </Button>
+                </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-                      <label className="space-y-2 text-sm font-medium text-foreground">
+                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
+                  <div className="flex min-h-0 flex-col gap-3">
+                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                      Prompt
+                      <Textarea
+                        rows={7}
+                        value={activeDraftQuestion.prompt}
+                        className="min-h-0 flex-1 resize-none"
+                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { prompt: event.target.value })}
+                      />
+                    </label>
+                    <div className="grid shrink-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                      <label className="space-y-1.5 text-sm font-medium text-foreground">
                         Type
                         <Select
-                          value={question.type}
-                          onChange={(event) => updateDraftQuestionType(index, event.target.value as QuizQuestionType)}
+                          value={activeDraftQuestion.type}
+                          onChange={(event) => updateDraftQuestionType(draftQuestionIndex, event.target.value as QuizQuestionType)}
                         >
                           {questionTypeOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -981,12 +1012,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                           ))}
                         </Select>
                       </label>
-                      <label className="space-y-2 text-sm font-medium text-foreground">
+                      <label className="space-y-1.5 text-sm font-medium text-foreground">
                         Source metadata
                         <Input
-                          value={question.sourceNoteTitles.join(", ")}
+                          value={activeDraftQuestion.sourceNoteTitles.join(", ")}
                           onChange={(event) =>
-                            updateDraftQuestion(index, {
+                            updateDraftQuestion(draftQuestionIndex, {
                               sourceNoteTitles: event.target.value
                                 .split(",")
                                 .map((item) => item.trim())
@@ -996,39 +1027,53 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                         />
                       </label>
                     </div>
-
-                    {question.type === "multiple_choice" && question.choices?.length ? (
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        {question.choices.map((choice, choiceIndex) => (
-                          <label key={`${question.id}-${choiceIndex}`} className="space-y-2 text-sm font-medium text-foreground">
-                            Choice {choiceIndex + 1}
-                            <Input value={choice} onChange={(event) => updateDraftChoice(index, choiceIndex, event.target.value)} />
-                          </label>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <label className="mt-4 block space-y-2 text-sm font-medium text-foreground">
-                      Explanation
-                      <Textarea rows={3} value={question.explanation} onChange={(event) => updateDraftQuestion(index, { explanation: event.target.value })} />
-                    </label>
-
-                    {question.sourceNoteTitles.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {question.sourceNoteTitles.map((title) => (
-                          <Badge key={title} variant="neutral">
-                            {title}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
-                ))}
+
+                  <div className="flex min-h-0 flex-col gap-3">
+                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                      Correct answer
+                      <Textarea
+                        rows={7}
+                        value={activeDraftQuestion.correctAnswer}
+                        className="min-h-0 flex-1 resize-none"
+                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { correctAnswer: event.target.value })}
+                      />
+                    </label>
+                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                      Explanation
+                      <Textarea
+                        rows={3}
+                        value={activeDraftQuestion.explanation}
+                        className="min-h-0 flex-1 resize-none"
+                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { explanation: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {activeDraftQuestion.type === "multiple_choice" && activeDraftQuestion.choices?.length ? (
+                  <div className="mt-3 grid shrink-0 gap-2 md:grid-cols-4">
+                    {activeDraftQuestion.choices.map((choice, choiceIndex) => (
+                      <label key={`${activeDraftQuestion.id}-${choiceIndex}`} className="space-y-1.5 text-sm font-medium text-foreground">
+                        Choice {choiceIndex + 1}
+                        <Input value={choice} onChange={(event) => updateDraftChoice(draftQuestionIndex, choiceIndex, event.target.value)} />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex min-h-0 items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface-muted">
+                <div className="text-center">
+                  <FileQuestion className="mx-auto mb-3 size-8 text-muted-foreground" />
+                  <p className="font-semibold text-foreground">No questions in preview</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Add a question or go back to generate from context.</p>
+                </div>
               </div>
             )}
           </section>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
               disabled={draftQuestions.length === 0 || !draftTitle.trim() || isSaving}
@@ -1055,8 +1100,8 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     }
 
     return (
-      <Card>
-        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <Card className="flex h-full min-h-0 flex-col">
+        <CardHeader className="shrink-0 gap-4 py-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>{activeQuiz.title}</CardTitle>
             <CardDescription>
@@ -1073,20 +1118,20 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             ) : null}
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
           {examExpired ? (
             <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               Time expired. Finish quiz to save results.
             </div>
           ) : null}
-          <div className="h-2 rounded-full bg-surface-muted">
+          <div className="h-2 shrink-0 rounded-full bg-surface-muted">
             <div
               className="h-2 rounded-full bg-accent transition-all"
               style={{ width: `${((currentIndex + 1) / activeQuiz.questions.length) * 100}%` }}
             />
           </div>
-          <div className="space-y-3">
+          <div className="min-h-0 shrink overflow-y-auto rounded-lg border border-border bg-surface-muted p-4">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{currentQuestion.type.replace("_", " ")}</Badge>
               {currentQuestion.sourceNoteTitles.map((title) => (
@@ -1098,7 +1143,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <MarkdownText markdown={currentQuestion.prompt} className="space-y-3 text-xl font-semibold leading-8" />
           </div>
           {currentQuestion.type === "multiple_choice" || currentQuestion.type === "true_false" ? (
-            <div className="grid gap-2">
+            <div className="grid shrink-0 gap-2">
               {(currentQuestion.choices ?? []).map((choice) => (
                 <label
                   key={choice}
@@ -1125,6 +1170,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               disabled={Boolean(currentEvaluation) || examExpired || isFinishing}
               placeholder="Type your answer..."
               rows={7}
+              className="min-h-0 flex-1 resize-none"
               onChange={(event) => updateAnswer(currentQuestion.id, event.target.value)}
             />
           )}
@@ -1145,7 +1191,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               <MarkdownText markdown={currentEvaluation.idealAnswer} className="mt-1 space-y-2" />
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" disabled={currentIndex === 0 || isFinishing} onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}>
                 Previous
@@ -1179,15 +1225,21 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     }
 
     const byQuestionId = new Map(selectedAttempt.answers.map((answer) => [answer.questionId, answer]));
+    const resultQuestionIndex = Math.min(currentIndex, activeQuiz.questions.length - 1);
+    const resultQuestion = activeQuiz.questions[resultQuestionIndex];
+    const resultAnswer = resultQuestion ? byQuestionId.get(resultQuestion.id) : undefined;
+    const resultEvaluation = resultQuestion
+      ? resultAnswer?.evaluation ?? createUnansweredEvaluation(resultQuestion)
+      : null;
 
     return (
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
+      <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <Card className="flex min-h-0 flex-col">
+          <CardHeader className="shrink-0 py-5">
             <CardTitle>Results</CardTitle>
             <CardDescription>{activeQuiz.title}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
             <div className="rounded-lg border border-border bg-surface-muted p-4">
               <div className="text-3xl font-semibold text-foreground">{formatPercent(selectedAttempt.score)}</div>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -1197,6 +1249,32 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>Completed {formatDate(selectedAttempt.completedAt)}</p>
               {selectedAttempt.timeSpentSeconds !== null ? <p>Time spent {formatTimer(selectedAttempt.timeSpentSeconds)}</p> : null}
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+              {activeQuiz.questions.map((question, index) => {
+                const answer = byQuestionId.get(question.id);
+                const evaluation = answer?.evaluation ?? createUnansweredEvaluation(question);
+                return (
+                  <button
+                    key={question.id}
+                    type="button"
+                    className={cx(
+                      "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition",
+                      resultQuestionIndex === index
+                        ? "border-accent bg-accent-soft text-accent"
+                        : "border-border bg-surface hover:bg-surface-muted",
+                    )}
+                    onClick={() => setCurrentIndex(index)}
+                  >
+                    <span>Question {index + 1}</span>
+                    {evaluation.correct ? (
+                      <CheckCircle2 className="size-4 text-accent" />
+                    ) : (
+                      <XCircle className="size-4 text-muted-foreground" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" leadingIcon={<RotateCcw className="size-4" />} onClick={() => startTaking(activeQuiz)}>
@@ -1209,78 +1287,77 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           </CardContent>
         </Card>
 
-        <section className="space-y-4">
-          {activeQuiz.questions.map((question, index) => {
-            const answer = byQuestionId.get(question.id);
-            const evaluation = answer?.evaluation ?? createUnansweredEvaluation(question);
-            return (
-              <Card key={question.id} className={evaluation.correct ? "border-green-200 dark:border-green-950/70" : "border-red-200 dark:border-red-950/70"}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">Question {index + 1}</Badge>
-                    {evaluation.correct ? (
-                      <Badge variant="accent">
-                        <CheckCircle2 className="size-3.5" />
-                        Correct
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral">
-                        <XCircle className="size-3.5" />
-                        Missed
-                      </Badge>
-                    )}
-                  </div>
-                  <CardTitle className="text-base">Review</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm">
-                  <MarkdownText markdown={question.prompt} className="space-y-2 font-medium" />
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-border bg-surface-muted p-3">
-                      <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Your answer</div>
-                      <MarkdownText markdown={answer?.answer.trim() || "Unanswered"} className="space-y-2" />
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface-muted p-3">
-                      <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Correct answer</div>
-                      <MarkdownText markdown={question.correctAnswer} className="space-y-2" />
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border bg-surface p-3">
-                    <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Feedback</div>
-                    <MarkdownText markdown={evaluation.feedback} className="space-y-2" />
-                    <div className="mt-3 mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Explanation</div>
-                    <MarkdownText markdown={question.explanation || evaluation.idealAnswer} className="space-y-2" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </section>
+        {resultQuestion && resultEvaluation ? (
+          <Card className={cx("flex min-h-0 flex-col", resultEvaluation.correct ? "border-green-200 dark:border-green-950/70" : "border-red-200 dark:border-red-950/70")}>
+            <CardHeader className="shrink-0 py-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">Question {resultQuestionIndex + 1}</Badge>
+                {resultEvaluation.correct ? (
+                  <Badge variant="accent">
+                    <CheckCircle2 className="size-3.5" />
+                    Correct
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">
+                    <XCircle className="size-3.5" />
+                    Missed
+                  </Badge>
+                )}
+              </div>
+              <CardTitle className="text-base">Review</CardTitle>
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3 text-sm">
+              <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
+                <MarkdownText markdown={resultQuestion.prompt} className="space-y-2 font-medium" />
+              </div>
+              <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-2">
+                <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
+                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Your answer</div>
+                  <MarkdownText markdown={resultAnswer?.answer.trim() || "Unanswered"} className="space-y-2" />
+                </div>
+                <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
+                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Correct answer</div>
+                  <MarkdownText markdown={resultQuestion.correctAnswer} className="space-y-2" />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface p-3">
+                <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Feedback</div>
+                <MarkdownText markdown={resultEvaluation.feedback} className="space-y-2" />
+                <div className="mt-3 mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Explanation</div>
+                <MarkdownText markdown={resultQuestion.explanation || resultEvaluation.idealAnswer} className="space-y-2" />
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <header className="space-y-4">
+    <main
+      data-testid="quizzes-one-page"
+      className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 overflow-hidden px-4 py-5 sm:px-6 lg:px-8"
+    >
+      <header className="shrink-0">
         <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.28em] text-muted-foreground">QUIZZES</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">QUIZZES</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
             {view === "library" ? "My Quizzes" : "Quizzes"}
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Focused quiz library, generation queue, and question editor.
           </p>
         </div>
       </header>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
+        <div className="shrink-0 rounded-lg border border-red-200 bg-danger-soft px-4 py-2 text-sm text-danger dark:border-red-950/70">
           {error}
         </div>
       ) : null}
 
       {view !== "library" ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => openLibrary(activeQuizId)}>
             My Quizzes
           </Button>
@@ -1288,11 +1365,13 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         </div>
       ) : null}
 
-      {view === "library" ? renderLibrary() : null}
-      {view === "create" ? renderCreate() : null}
-      {view === "preview" ? renderPreview() : null}
-      {view === "take" ? renderTake() : null}
-      {view === "results" ? renderResults() : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {view === "library" ? renderLibrary() : null}
+        {view === "create" ? renderCreate() : null}
+        {view === "preview" ? renderPreview() : null}
+        {view === "take" ? renderTake() : null}
+        {view === "results" ? renderResults() : null}
+      </div>
     </main>
   );
 }
