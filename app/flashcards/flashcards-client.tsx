@@ -432,7 +432,7 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader
         eyebrow="Flashcards"
         title={view === "library" ? "My Flashcards" : "Flashcards"}
@@ -446,7 +446,7 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
       ) : null}
 
       {view === "library" ? (
-        <div className="space-y-6">
+        <div className="flex flex-1 flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{decks.length} decks</Badge>
@@ -460,8 +460,8 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
           </div>
 
           {decks.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex min-h-80 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+            <Card className="flex min-h-[28rem] flex-1 border-dashed">
+              <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
                 <Brain className="size-10 text-muted-foreground" />
                 <div className="space-y-1">
                   <h2 className="text-base font-semibold text-foreground">No flashcard decks</h2>
