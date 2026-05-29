@@ -1,12 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   Copy,
-  Edit3,
   FileQuestion,
   Loader2,
   Pencil,
@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
-import { PageHeader } from "@/components/ui/page-header";
 import { createUnansweredEvaluation, gradeObjectiveAnswer, summarizeAttempt } from "@/lib/quizzes/attempts";
 import type { QuizDifficulty, QuizQuestion, QuizQuestionType } from "@/lib/quizzes/gemini";
 import type { QuizAttempt, QuizAttemptAnswer, QuizEvaluation, QuizMode, SavedQuiz } from "@/lib/quizzes/types";
@@ -121,6 +120,40 @@ function MarkdownText({ markdown, className }: { markdown: string; className?: s
       </ReactMarkdown>
     </div>
   );
+}
+
+function StepPill({ active, children }: { active?: boolean; children: ReactNode }) {
+  return (
+    <span
+      className={cx(
+        "inline-flex h-9 items-center rounded-full border px-3 text-sm font-medium",
+        active
+          ? "border-accent/20 bg-accent-soft text-accent"
+          : "border-border bg-transparent text-muted-foreground",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex h-8 items-center rounded-full border border-border bg-transparent px-3 text-sm font-medium text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function makeDraftQuestion(sourceNoteTitles: string[]): QuizQuestion {
+  return {
+    id: crypto.randomUUID(),
+    type: "free_response",
+    prompt: "",
+    correctAnswer: "",
+    explanation: "",
+    sourceNoteTitles,
+  };
 }
 
 function getSourceTitles(questions: QuizQuestion[], notes: QuizNoteOption[], selectedNoteIds: string[]) {
@@ -296,8 +329,34 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     );
   }
 
+  function updateDraftQuestionType(index: number, type: QuizQuestionType) {
+    setDraftQuestions((current) =>
+      current.map((question, questionIndex) => {
+        if (questionIndex !== index) {
+          return question;
+        }
+
+        return {
+          ...question,
+          type,
+          choices:
+            type === "multiple_choice"
+              ? question.choices ?? ["", "", "", ""]
+              : type === "true_false"
+                ? ["True", "False"]
+                : undefined,
+        };
+      }),
+    );
+  }
+
   function removeDraftQuestion(index: number) {
     setDraftQuestions((current) => current.filter((_, questionIndex) => questionIndex !== index));
+  }
+
+  function addDraftQuestion() {
+    const selectedTitles = notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
+    setDraftQuestions((current) => [...current, makeDraftQuestion(selectedTitles)]);
   }
 
   async function saveDraftQuiz() {
@@ -534,256 +593,251 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   }
 
   function renderLibrary() {
-    return (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="space-y-4">
-          {quizzes.length === 0 ? (
-            <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>No saved quizzes yet</CardTitle>
-                <CardDescription>
-                  Create a quiz from notes, review generated questions, then save it here.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button type="button" leadingIcon={<Plus className="size-4" />} onClick={openCreate}>
-                  Create quiz
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {quizzes.map((quiz) => {
-                const lastAttempt = attempts.find((attempt) => attempt.quizId === quiz.id);
-                return (
-                  <Card
-                    key={quiz.id}
-                    className={cx(
-                      "transition hover:border-border-strong hover:bg-surface-muted",
-                      activeQuiz?.id === quiz.id ? "border-accent" : "",
-                    )}
-                  >
-                    <CardHeader>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="accent">{quiz.mode}</Badge>
-                        <Badge variant="outline">{quiz.difficulty}</Badge>
-                        <Badge variant="outline">{quiz.questionCount} questions</Badge>
-                      </div>
-                      <CardTitle>{quiz.title}</CardTitle>
-                      <CardDescription>
-                        Updated {formatDate(quiz.updatedAt)}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex flex-wrap gap-2">
-                        {quiz.sourceNoteTitles.slice(0, 4).map((title) => (
-                          <Badge key={title} variant="neutral">
-                            {title}
-                          </Badge>
-                        ))}
-                      </div>
-                      {lastAttempt ? (
-                        <p className="text-sm text-muted-foreground">
-                          Last result {formatPercent(lastAttempt.score)} on {formatDate(lastAttempt.completedAt)}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No completed attempts yet.</p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" onClick={() => startTaking(quiz)} leadingIcon={<Play className="size-4" />}>
-                          Take
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => setActiveQuizId(quiz.id)}>
-                          Open
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
+    const totalQuestions = quizzes.reduce((sum, quiz) => sum + quiz.questionCount, 0);
 
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{activeQuiz?.title ?? "Quiz detail"}</CardTitle>
-              <CardDescription>
-                {activeQuiz ? "Review metadata, questions, and previous results." : "Select a saved quiz."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {activeQuiz ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg border border-border bg-surface-muted p-3">
-                      <div className="text-xs text-muted-foreground">Questions</div>
-                      <div className="font-semibold text-foreground">{activeQuiz.questionCount}</div>
+    return (
+      <section className="space-y-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-wrap gap-2">
+            <StatPill>{quizzes.length} quizzes</StatPill>
+            <StatPill>{totalQuestions} questions</StatPill>
+          </div>
+          <Button type="button" leadingIcon={<Plus className="size-4" />} onClick={openCreate}>
+            Create quiz
+          </Button>
+        </div>
+
+        {quizzes.length === 0 ? (
+          <div className="flex min-h-[28rem] items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface/70 p-8">
+            <div className="flex max-w-sm flex-col items-center text-center">
+              <FileQuestion className="mb-5 size-12 text-muted-foreground" />
+              <h2 className="text-lg font-semibold text-foreground">No saved quizzes</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Saved quizzes appear here.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {quizzes.map((quiz) => {
+              const quizAttempts = attempts.filter((attempt) => attempt.quizId === quiz.id);
+              const lastAttempt = quizAttempts[0];
+              const isDeleting = deleteQuizId === quiz.id;
+
+              return (
+                <Card
+                  key={quiz.id}
+                  className={cx(
+                    "transition hover:border-border-strong hover:bg-surface-muted",
+                    activeQuiz?.id === quiz.id ? "border-accent/70" : "",
+                  )}
+                >
+                  <CardHeader className="gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="accent">{quiz.mode}</Badge>
+                      <Badge variant="outline">{quiz.difficulty}</Badge>
+                      <Badge variant="outline">{quiz.questionCount} questions</Badge>
+                      {lastAttempt ? <Badge variant="neutral">{formatPercent(lastAttempt.score)} last score</Badge> : null}
                     </div>
-                    <div className="rounded-lg border border-border bg-surface-muted p-3">
-                      <div className="text-xs text-muted-foreground">Mode</div>
-                      <div className="font-semibold capitalize text-foreground">{activeQuiz.mode}</div>
+                    <div>
+                      <CardTitle>{quiz.title}</CardTitle>
+                      <CardDescription>Updated {formatDate(quiz.updatedAt)}</CardDescription>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-sm font-medium text-foreground">Questions</h2>
-                    <div className="max-h-64 space-y-2 overflow-auto pr-1">
-                      {activeQuiz.questions.map((question, index) => (
-                        <div key={question.id} className="rounded-lg border border-border bg-surface-muted p-3 text-sm">
-                          <div className="mb-1 flex items-center gap-2">
-                            <Badge variant="outline">{index + 1}</Badge>
-                            <Badge variant="neutral">{question.type.replace("_", " ")}</Badge>
-                          </div>
-                          <MarkdownText markdown={question.prompt} className="line-clamp-3" />
-                        </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex flex-wrap gap-2">
+                      {quiz.sourceNoteTitles.slice(0, 5).map((title) => (
+                        <Badge key={title} variant="neutral">
+                          {title}
+                        </Badge>
                       ))}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-sm font-medium text-foreground">Previous results</h2>
-                    {activeAttempts.length === 0 ? (
-                      <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
-                        Attempts will appear after quiz completion.
-                      </p>
-                    ) : (
-                      activeAttempts.slice(0, 4).map((attempt) => (
-                        <button
-                          key={attempt.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-surface-muted"
-                          onClick={() => {
-                            setSelectedAttemptId(attempt.id);
-                            setLatestAttempt(attempt);
-                            setView("results");
-                          }}
-                        >
-                          <span>{formatDate(attempt.completedAt)}</span>
-                          <Badge variant="accent">{formatPercent(attempt.score)}</Badge>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" leadingIcon={<Play className="size-4" />} onClick={() => startTaking(activeQuiz)}>
-                      Take
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" leadingIcon={<Pencil className="size-4" />} onClick={() => editQuiz(activeQuiz)}>
-                      Edit
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" leadingIcon={<Copy className="size-4" />} disabled={isSaving} onClick={() => void duplicateQuiz(activeQuiz)}>
-                      Duplicate
-                    </Button>
-                    <Button type="button" size="sm" variant="destructive" leadingIcon={<Trash2 className="size-4" />} onClick={() => setDeleteQuizId(activeQuiz.id)}>
-                      Delete
-                    </Button>
-                  </div>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
 
-          {deleteQuizId ? (
-            <Card className="border-red-200 dark:border-red-950/70">
-              <CardHeader>
-                <CardTitle>Delete quiz?</CardTitle>
-                <CardDescription>This removes quiz and saved attempts.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button type="button" variant="destructive" disabled={isSaving} onClick={() => void deleteQuiz(deleteQuizId)}>
-                  Confirm delete
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setDeleteQuizId(null)}>
-                  Cancel
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-        </aside>
-      </div>
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-foreground">Questions</h3>
+                      <div className="grid gap-2">
+                        {quiz.questions.slice(0, 3).map((question, index) => (
+                          <button
+                            key={question.id}
+                            type="button"
+                            className="rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
+                            onClick={() => {
+                              setActiveQuizId(quiz.id);
+                              editQuiz(quiz);
+                            }}
+                          >
+                            <span className="mb-1 flex items-center gap-2">
+                              <Badge variant="outline">Question {index + 1}</Badge>
+                              <Badge variant="neutral">{question.type.replace("_", " ")}</Badge>
+                            </span>
+                            <MarkdownText markdown={question.prompt} className="line-clamp-2 text-sm" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {quizAttempts.length > 0 ? (
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium text-foreground">Previous results</h3>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {quizAttempts.slice(0, 4).map((attempt) => (
+                            <button
+                              key={attempt.id}
+                              type="button"
+                              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
+                              onClick={() => {
+                                setActiveQuizId(quiz.id);
+                                setSelectedAttemptId(attempt.id);
+                                setLatestAttempt(attempt);
+                                setView("results");
+                              }}
+                            >
+                              <span className="truncate text-muted-foreground">{formatDate(attempt.completedAt)}</span>
+                              <Badge variant="accent">{formatPercent(attempt.score)}</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+                        Attempts appear after quiz completion.
+                      </p>
+                    )}
+
+                    {isDeleting ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-danger-soft px-3 py-3 text-sm text-danger dark:border-red-950/70">
+                        <span>Delete quiz and saved attempts?</span>
+                        <span className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="destructive" disabled={isSaving} onClick={() => void deleteQuiz(quiz.id)}>
+                            Confirm delete
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setDeleteQuizId(null)}>
+                            Cancel
+                          </Button>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" leadingIcon={<Play className="size-4" />} onClick={() => startTaking(quiz)}>
+                          Take
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" leadingIcon={<Pencil className="size-4" />} onClick={() => editQuiz(quiz)}>
+                          Edit
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" leadingIcon={<Copy className="size-4" />} disabled={isSaving} onClick={() => void duplicateQuiz(quiz)}>
+                          Duplicate
+                        </Button>
+                        <Button type="button" size="sm" variant="destructive" leadingIcon={<Trash2 className="size-4" />} onClick={() => setDeleteQuizId(quiz.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
     );
   }
 
   function renderCreate() {
     return (
-      <div className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Create quiz</CardTitle>
-            <CardDescription>Select note context before generation starts.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-medium text-foreground">Source notes</h2>
-                <Badge variant="outline">{selectedNoteIds.length} selected</Badge>
-              </div>
-              <div className="max-h-80 space-y-2 overflow-auto pr-1">
-                {notes.length === 0 ? (
-                  <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
-                    Create or upload notes first.
-                  </p>
-                ) : (
-                  notes.map((note) => (
-                    <label
-                      key={note.id}
-                      className={cx(
-                        "flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface px-3 py-3 text-sm transition",
-                        note.hasEmbedding ? "hover:border-border-strong hover:bg-surface-muted" : "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-1 size-4 accent-[var(--accent)]"
-                        checked={selectedNoteIds.includes(note.id)}
-                        disabled={!note.hasEmbedding || isGenerating}
-                        onChange={() => toggleNote(note.id)}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium text-foreground">{note.title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {note.hasEmbedding ? `Embedding ready - updated ${formatDate(note.updatedAt)}` : "No embedding stored. Upload or regenerate notes before using this context."}
-                        </span>
-                      </span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </section>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={!canGenerate} leadingIcon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <FileQuestion className="size-4" />} onClick={() => void generatePreview()}>
-                Generate preview
-              </Button>
-              <Button type="button" variant="outline" onClick={() => openLibrary()}>
-                Cancel
-              </Button>
+      <Card>
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-xl">Create Quiz</CardTitle>
+            <CardDescription>Choose note context and quiz settings.</CardDescription>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <StepPill active>Context</StepPill>
+            <StepPill>Preview</StepPill>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-foreground">Notes</h2>
+              <Badge variant="outline" className="text-sm">
+                {selectedNoteIds.length} selected
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {notes.length === 0 ? (
+                <p className="rounded-lg border border-border bg-surface-muted px-3 py-3 text-sm text-muted-foreground">
+                  Create or upload notes first.
+                </p>
+              ) : (
+                notes.map((note) => (
+                  <label
+                    key={note.id}
+                    className={cx(
+                      "flex min-h-20 cursor-pointer items-start gap-4 rounded-lg border border-border bg-surface px-4 py-4 text-sm transition",
+                      note.hasEmbedding ? "hover:border-border-strong hover:bg-surface-muted" : "cursor-not-allowed opacity-60",
+                      selectedNoteIds.includes(note.id) ? "border-accent bg-accent-soft/60" : "",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 accent-[var(--accent)]"
+                      checked={selectedNoteIds.includes(note.id)}
+                      disabled={!note.hasEmbedding || isGenerating}
+                      onChange={() => toggleNote(note.id)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold text-foreground">{note.title}</span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {note.hasEmbedding ? "Embedding ready" : "Embedding required"}
+                      </span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Quiz settings</CardTitle>
-            <CardDescription>Mode, difficulty, question types, count, and time limit.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <section className="grid gap-3 md:grid-cols-2">
-              {modeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={cx(
-                    "rounded-lg border px-4 py-3 text-left text-sm transition",
-                    mode === option.value ? "border-accent bg-accent-soft text-accent" : "border-border bg-surface hover:bg-surface-muted",
-                  )}
-                  onClick={() => setMode(option.value)}
-                >
-                  <span className="block font-semibold">{option.label}</span>
-                  <span className="mt-1 block text-muted-foreground">{option.description}</span>
-                </button>
-              ))}
-            </section>
-            <div className="grid gap-4 md:grid-cols-3">
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+            <div className="space-y-4">
+              <h2 className="text-sm font-semibold text-foreground">Question types</h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                {questionTypeOptions.map((option) => (
+                  <label
+                    key={option.value}
+                    className={cx(
+                      "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm transition hover:bg-surface-muted",
+                      questionTypes.includes(option.value) ? "border-accent bg-accent-soft/60 text-accent" : "",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[var(--accent)]"
+                      checked={questionTypes.includes(option.value)}
+                      onChange={() => toggleQuestionType(option.value)}
+                    />
+                    <span className="font-medium">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {modeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={cx(
+                      "rounded-lg border px-4 py-3 text-left text-sm transition",
+                      mode === option.value
+                        ? "border-accent bg-accent-soft text-accent"
+                        : "border-border bg-surface hover:bg-surface-muted",
+                    )}
+                    onClick={() => setMode(option.value)}
+                  >
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className="mt-1 block text-muted-foreground">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Difficulty
                 <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
@@ -803,134 +857,195 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                 <Input min={1} max={240} type="number" disabled={mode !== "exam"} value={timeMinutes} onChange={(event) => setTimeMinutes(Number(event.target.value))} />
               </label>
             </div>
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-foreground">Question types</h2>
-              <div className="grid gap-2 md:grid-cols-3">
-                {questionTypeOptions.map((option) => (
-                  <label key={option.value} className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-3 text-sm">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-[var(--accent)]"
-                      checked={questionTypes.includes(option.value)}
-                      onChange={() => toggleQuestionType(option.value)}
-                    />
-                    {option.label}
-                  </label>
-                ))}
-              </div>
-            </section>
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-foreground">Selected context</h2>
-              {selectedNoteIds.length === 0 ? (
-                <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
-                  Select one or more embedding-ready notes.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => (
-                    <Badge key={note.id} variant="accent">
-                      {note.title}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </section>
-          </CardContent>
-        </Card>
-      </div>
+          </section>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={!canGenerate}
+              leadingIcon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              onClick={() => void generatePreview()}
+            >
+              Generate preview
+            </Button>
+            <Button type="button" variant="outline" onClick={() => openLibrary()}>
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   function renderPreview() {
     return (
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Preview and edit</CardTitle>
-            <CardDescription>Generated questions are editable before saving or taking.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <label className="space-y-2 text-sm font-medium text-foreground">
-              Quiz title
-              <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-            </label>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg border border-border bg-surface-muted p-3">
-                <div className="text-xs text-muted-foreground">Mode</div>
-                <div className="font-semibold capitalize text-foreground">{mode}</div>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-muted p-3">
-                <div className="text-xs text-muted-foreground">Questions</div>
-                <div className="font-semibold text-foreground">{draftQuestions.length}</div>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={draftQuestions.length === 0 || !draftTitle.trim() || isSaving} leadingIcon={isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} onClick={() => void saveDraftQuiz()}>
-                Save quiz
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setView(editingQuizId ? "library" : "create")}>
-                Back
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => openLibrary(activeQuizId)}>
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-xl">Preview Quiz</CardTitle>
+            <CardDescription>Edit before saving.</CardDescription>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <StepPill>Context</StepPill>
+            <StepPill active>Preview</StepPill>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-7">
+          <label className="block space-y-2 text-sm font-medium text-foreground">
+            Quiz name
+            <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+          </label>
 
-        <section className="space-y-4">
-          {draftQuestions.map((question, index) => (
-            <Card key={question.id}>
-              <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle>Question {index + 1}</CardTitle>
-                  <CardDescription>{question.type.replace("_", " ")}</CardDescription>
-                </div>
-                <Button type="button" size="sm" variant="destructive" leadingIcon={<Trash2 className="size-4" />} onClick={() => removeDraftQuestion(index)}>
-                  Remove
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Prompt
-                  <Textarea rows={3} value={question.prompt} onChange={(event) => updateDraftQuestion(index, { prompt: event.target.value })} />
-                </label>
-                {question.choices?.length ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {question.choices.map((choice, choiceIndex) => (
-                      <label key={`${question.id}-${choiceIndex}`} className="space-y-2 text-sm font-medium text-foreground">
-                        Choice {choiceIndex + 1}
-                        <Input value={choice} onChange={(event) => updateDraftChoice(index, choiceIndex, event.target.value)} />
+          <section className="grid gap-4 lg:grid-cols-4">
+            <label className="space-y-2 text-sm font-medium text-foreground">
+              Mode
+              <Select value={mode} onChange={(event) => setMode(event.target.value as QuizMode)}>
+                {modeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="space-y-2 text-sm font-medium text-foreground">
+              Difficulty
+              <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
+                {difficultyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="space-y-2 text-sm font-medium text-foreground">
+              Time limit
+              <Input min={1} max={240} type="number" disabled={mode !== "exam"} value={timeMinutes} onChange={(event) => setTimeMinutes(Number(event.target.value))} />
+            </label>
+            <label className="space-y-2 text-sm font-medium text-foreground">
+              Question types
+              <Input
+                value={questionTypes.map((type) => type.replace("_", " ")).join(", ")}
+                readOnly
+                className="text-muted-foreground"
+              />
+            </label>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-foreground">Questions</h2>
+              <Button type="button" variant="outline" leadingIcon={<Plus className="size-4" />} onClick={addDraftQuestion}>
+                Add question
+              </Button>
+            </div>
+
+            {draftQuestions.length === 0 ? (
+              <div className="rounded-[var(--radius-xl)] border border-dashed border-border bg-surface-muted px-6 py-10 text-center">
+                <FileQuestion className="mx-auto mb-3 size-8 text-muted-foreground" />
+                <h3 className="font-semibold text-foreground">No questions in preview</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Add a question or go back to generate from context.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {draftQuestions.map((question, index) => (
+                  <div key={question.id} className="rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-5">
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                      <Badge variant="outline">Question {index + 1}</Badge>
+                      <Button type="button" size="sm" variant="ghost" leadingIcon={<Trash2 className="size-4" />} onClick={() => removeDraftQuestion(index)}>
+                        Remove
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <label className="space-y-2 text-sm font-medium text-foreground">
+                        Prompt
+                        <Textarea rows={7} value={question.prompt} onChange={(event) => updateDraftQuestion(index, { prompt: event.target.value })} />
                       </label>
-                    ))}
+                      <label className="space-y-2 text-sm font-medium text-foreground">
+                        Correct answer
+                        <Textarea rows={7} value={question.correctAnswer} onChange={(event) => updateDraftQuestion(index, { correctAnswer: event.target.value })} />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                      <label className="space-y-2 text-sm font-medium text-foreground">
+                        Type
+                        <Select
+                          value={question.type}
+                          onChange={(event) => updateDraftQuestionType(index, event.target.value as QuizQuestionType)}
+                        >
+                          {questionTypeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                      <label className="space-y-2 text-sm font-medium text-foreground">
+                        Source metadata
+                        <Input
+                          value={question.sourceNoteTitles.join(", ")}
+                          onChange={(event) =>
+                            updateDraftQuestion(index, {
+                              sourceNoteTitles: event.target.value
+                                .split(",")
+                                .map((item) => item.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    {question.type === "multiple_choice" && question.choices?.length ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {question.choices.map((choice, choiceIndex) => (
+                          <label key={`${question.id}-${choiceIndex}`} className="space-y-2 text-sm font-medium text-foreground">
+                            Choice {choiceIndex + 1}
+                            <Input value={choice} onChange={(event) => updateDraftChoice(index, choiceIndex, event.target.value)} />
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <label className="mt-4 block space-y-2 text-sm font-medium text-foreground">
+                      Explanation
+                      <Textarea rows={3} value={question.explanation} onChange={(event) => updateDraftQuestion(index, { explanation: event.target.value })} />
+                    </label>
+
+                    {question.sourceNoteTitles.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {question.sourceNoteTitles.map((title) => (
+                          <Badge key={title} variant="neutral">
+                            {title}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm font-medium text-foreground">
-                    Correct answer
-                    <Input value={question.correctAnswer} onChange={(event) => updateDraftQuestion(index, { correctAnswer: event.target.value })} />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium text-foreground">
-                    Source metadata
-                    <Input
-                      value={question.sourceNoteTitles.join(", ")}
-                      onChange={(event) =>
-                        updateDraftQuestion(index, {
-                          sourceNoteTitles: event.target.value.split(",").map((item) => item.trim()).filter(Boolean),
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-                <label className="space-y-2 text-sm font-medium text-foreground">
-                  Explanation
-                  <Textarea rows={3} value={question.explanation} onChange={(event) => updateDraftQuestion(index, { explanation: event.target.value })} />
-                </label>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-      </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              disabled={draftQuestions.length === 0 || !draftTitle.trim() || isSaving}
+              leadingIcon={isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              onClick={() => void saveDraftQuiz()}
+            >
+              Save quiz
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setView(editingQuizId ? "library" : "create")}>
+              Back
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => openLibrary(activeQuizId)}>
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -1145,19 +1260,18 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <PageHeader
-        eyebrow="Quizzing"
-        title="Quizzes"
-        description="Manage saved quizzes, generate from notes, edit before saving, take focused attempts, and review results."
-        actions={
-          view === "library" ? (
-            <Button type="button" leadingIcon={<Plus className="size-4" />} onClick={openCreate}>
-              Create quiz
-            </Button>
-          ) : null
-        }
-      />
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+      <header className="space-y-4">
+        <div>
+          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.28em] text-muted-foreground">QUIZZES</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground">
+            {view === "library" ? "My Quizzes" : "Quizzes"}
+          </h1>
+          <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+            Focused quiz library, generation queue, and question editor.
+          </p>
+        </div>
+      </header>
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-danger-soft px-4 py-3 text-sm text-danger dark:border-red-950/70">
@@ -1170,12 +1284,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           <Button type="button" variant="ghost" size="sm" onClick={() => openLibrary(activeQuizId)}>
             My Quizzes
           </Button>
-          {view === "take" && activeQuiz ? (
-            <Badge variant="outline">
-              <Edit3 className="size-3.5" />
-              Focus mode
-            </Badge>
-          ) : null}
+          {view === "take" && activeQuiz ? <Badge variant="outline">Focus mode</Badge> : null}
         </div>
       ) : null}
 
