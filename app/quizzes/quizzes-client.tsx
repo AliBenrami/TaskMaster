@@ -9,6 +9,7 @@ import {
   Copy,
   FileQuestion,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -23,11 +24,31 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input, Select, Textarea } from "@/components/ui/input";
-import { createUnansweredEvaluation, gradeObjectiveAnswer, summarizeAttempt } from "@/lib/quizzes/attempts";
-import type { QuizDifficulty, QuizQuestion, QuizQuestionType } from "@/lib/quizzes/gemini";
-import type { QuizAttempt, QuizAttemptAnswer, QuizEvaluation, QuizMode, SavedQuiz } from "@/lib/quizzes/types";
+import {
+  createUnansweredEvaluation,
+  gradeObjectiveAnswer,
+  summarizeAttempt,
+} from "@/lib/quizzes/attempts";
+import type {
+  QuizDifficulty,
+  QuizQuestion,
+  QuizQuestionType,
+} from "@/lib/quizzes/gemini";
+import type {
+  QuizAttempt,
+  QuizAttemptAnswer,
+  QuizEvaluation,
+  QuizMode,
+  SavedQuiz,
+} from "@/lib/quizzes/types";
 import { cx } from "@/lib/utils";
 
 type QuizNoteOption = {
@@ -57,9 +78,21 @@ const difficultyOptions: Array<{ value: QuizDifficulty; label: string }> = [
   { value: "hard", label: "Hard" },
 ];
 
-const modeOptions: Array<{ value: QuizMode; label: string; description: string }> = [
-  { value: "practice", label: "Practice", description: "Immediate checking while taking the quiz." },
-  { value: "exam", label: "Exam", description: "Timed attempt with results after finish." },
+const modeOptions: Array<{
+  value: QuizMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "practice",
+    label: "Practice",
+    description: "Immediate checking while taking the quiz.",
+  },
+  {
+    value: "exam",
+    label: "Exam",
+    description: "Timed attempt with results after finish.",
+  },
 ];
 
 function formatTimer(seconds: number) {
@@ -80,7 +113,9 @@ function formatPercent(value: number) {
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as T & { error?: string };
+  const payload = (await response.json().catch(() => null)) as T & {
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(payload?.error || "Request failed");
   }
@@ -88,7 +123,13 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
   return payload;
 }
 
-function MarkdownText({ markdown, className }: { markdown: string; className?: string }) {
+function MarkdownText({
+  markdown,
+  className,
+}: {
+  markdown: string;
+  className?: string;
+}) {
   return (
     <div className={cx("quiz-markdown min-w-0 text-foreground", className)}>
       <ReactMarkdown
@@ -96,13 +137,26 @@ function MarkdownText({ markdown, className }: { markdown: string; className?: s
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p: ({ children }) => <p>{children}</p>,
-          ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
-          ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+          ul: ({ children }) => (
+            <ul className="ml-5 list-disc space-y-1">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="ml-5 list-decimal space-y-1">{children}</ol>
+          ),
           li: ({ children }) => <li>{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">
+              {children}
+            </strong>
+          ),
           em: ({ children }) => <em className="italic">{children}</em>,
           code: ({ children, className: codeClassName }) => (
-            <code className={cx("rounded bg-surface-elevated px-1 py-0.5 font-mono text-[0.92em]", codeClassName)}>
+            <code
+              className={cx(
+                "rounded bg-surface-elevated px-1 py-0.5 font-mono text-[0.92em]",
+                codeClassName,
+              )}
+            >
               {children}
             </code>
           ),
@@ -112,7 +166,9 @@ function MarkdownText({ markdown, className }: { markdown: string; className?: s
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-border pl-3 text-muted-foreground">{children}</blockquote>
+            <blockquote className="border-l-4 border-border pl-3 text-muted-foreground">
+              {children}
+            </blockquote>
           ),
         }}
       >
@@ -122,7 +178,13 @@ function MarkdownText({ markdown, className }: { markdown: string; className?: s
   );
 }
 
-function StepPill({ active, children }: { active?: boolean; children: ReactNode }) {
+function StepPill({
+  active,
+  children,
+}: {
+  active?: boolean;
+  children: ReactNode;
+}) {
   return (
     <span
       className={cx(
@@ -156,21 +218,32 @@ function makeDraftQuestion(sourceNoteTitles: string[]): QuizQuestion {
   };
 }
 
-function getSourceTitles(questions: QuizQuestion[], notes: QuizNoteOption[], selectedNoteIds: string[]) {
+function getSourceTitles(
+  questions: QuizQuestion[],
+  notes: QuizNoteOption[],
+  selectedNoteIds: string[],
+) {
   const titles = questions.flatMap((question) => question.sourceNoteTitles);
   if (titles.length > 0) {
     return Array.from(new Set(titles));
   }
 
-  return notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
+  return notes
+    .filter((note) => selectedNoteIds.includes(note.id))
+    .map((note) => note.title);
 }
 
-function createQuizCopy(quiz: SavedQuiz): Omit<SavedQuiz, "id" | "createdAt" | "updatedAt"> {
+function createQuizCopy(
+  quiz: SavedQuiz,
+): Omit<SavedQuiz, "id" | "createdAt" | "updatedAt"> {
   return {
     title: `${quiz.title} copy`,
     sourceNoteIds: quiz.sourceNoteIds,
     sourceNoteTitles: quiz.sourceNoteTitles,
-    questions: quiz.questions.map((question) => ({ ...question, id: crypto.randomUUID() })),
+    questions: quiz.questions.map((question) => ({
+      ...question,
+      id: crypto.randomUUID(),
+    })),
     questionCount: quiz.questionCount,
     difficulty: quiz.difficulty,
     mode: quiz.mode,
@@ -179,8 +252,15 @@ function createQuizCopy(quiz: SavedQuiz): Omit<SavedQuiz, "id" | "createdAt" | "
   };
 }
 
-export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: QuizzesClientProps) {
-  const embeddedNotes = useMemo(() => notes.filter((note) => note.hasEmbedding), [notes]);
+export function QuizzesClient({
+  notes,
+  initialQuizzes,
+  initialAttempts,
+}: QuizzesClientProps) {
+  const embeddedNotes = useMemo(
+    () => notes.filter((note) => note.hasEmbedding),
+    [notes],
+  );
   const [quizzes, setQuizzes] = useState<SavedQuiz[]>(initialQuizzes);
   const [attempts, setAttempts] = useState<QuizAttempt[]>(initialAttempts);
   const [view, setView] = useState<View>("library");
@@ -191,7 +271,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   const [mode, setMode] = useState<QuizMode>("practice");
   const [timeMinutes, setTimeMinutes] = useState(20);
   const [questionCount, setQuestionCount] = useState(10);
-  const [questionTypes, setQuestionTypes] = useState<QuizQuestionType[]>(["multiple_choice"]);
+  const [questionTypes, setQuestionTypes] = useState<QuizQuestionType[]>([
+    "multiple_choice",
+  ]);
   const [difficulty, setDifficulty] = useState<QuizDifficulty>("medium");
   const [draftTitle, setDraftTitle] = useState("");
   const [draftQuestions, setDraftQuestions] = useState<QuizQuestion[]>([]);
@@ -209,10 +291,14 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [deleteQuizId, setDeleteQuizId] = useState<string | null>(null);
+  const [moreOpenId, setMoreOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const activeQuiz = quizzes.find((quiz) => quiz.id === activeQuizId) ?? quizzes[0] ?? null;
-  const activeAttempts = attempts.filter((attempt) => attempt.quizId === activeQuiz?.id);
+  const activeQuiz =
+    quizzes.find((quiz) => quiz.id === activeQuizId) ?? quizzes[0] ?? null;
+  const activeAttempts = attempts.filter(
+    (attempt) => attempt.quizId === activeQuiz?.id,
+  );
   const selectedAttempt =
     attempts.find((attempt) => attempt.id === selectedAttemptId) ??
     latestAttempt ??
@@ -220,13 +306,26 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     null;
   const currentQuestion = activeQuiz?.questions[currentIndex] ?? null;
   const activeDraftQuestion = draftQuestions[draftQuestionIndex] ?? null;
-  const currentAnswer = currentQuestion ? answers[currentQuestion.id]?.answer ?? "" : "";
-  const currentEvaluation = currentQuestion ? answers[currentQuestion.id]?.evaluation : undefined;
-  const canGenerate = selectedNoteIds.length > 0 && questionTypes.length > 0 && embeddedNotes.length > 0 && !isGenerating;
+  const currentAnswer = currentQuestion
+    ? (answers[currentQuestion.id]?.answer ?? "")
+    : "";
+  const currentEvaluation = currentQuestion
+    ? answers[currentQuestion.id]?.evaluation
+    : undefined;
+  const canGenerate =
+    selectedNoteIds.length > 0 &&
+    questionTypes.length > 0 &&
+    embeddedNotes.length > 0 &&
+    !isGenerating;
   const examExpired = activeQuiz?.mode === "exam" && remainingSeconds <= 0;
 
   useEffect(() => {
-    if (view !== "take" || activeQuiz?.mode !== "exam" || remainingSeconds <= 0 || isFinishing) {
+    if (
+      view !== "take" ||
+      activeQuiz?.mode !== "exam" ||
+      remainingSeconds <= 0 ||
+      isFinishing
+    ) {
       return;
     }
 
@@ -238,7 +337,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   }, [activeQuiz?.mode, isFinishing, remainingSeconds, view]);
 
   useEffect(() => {
-    setDraftQuestionIndex((index) => Math.min(Math.max(index, 0), Math.max(draftQuestions.length - 1, 0)));
+    setDraftQuestionIndex((index) =>
+      Math.min(Math.max(index, 0), Math.max(draftQuestions.length - 1, 0)),
+    );
   }, [draftQuestions.length]);
 
   function resetCreateForm() {
@@ -271,13 +372,17 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
   function toggleNote(noteId: string) {
     setSelectedNoteIds((current) =>
-      current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
+      current.includes(noteId)
+        ? current.filter((id) => id !== noteId)
+        : [...current, noteId],
     );
   }
 
   function toggleQuestionType(type: QuizQuestionType) {
     setQuestionTypes((current) =>
-      current.includes(type) ? current.filter((item) => item !== type) : [...current, type],
+      current.includes(type)
+        ? current.filter((item) => item !== type)
+        : [...current, type],
     );
   }
 
@@ -298,13 +403,23 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         }),
       );
 
-      const selectedTitles = notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
+      const selectedTitles = notes
+        .filter((note) => selectedNoteIds.includes(note.id))
+        .map((note) => note.title);
       setDraftQuestions(payload.questions);
       setDraftQuestionIndex(0);
-      setDraftTitle(selectedTitles.length === 1 ? `${selectedTitles[0]} quiz` : "Generated note quiz");
+      setDraftTitle(
+        selectedTitles.length === 1
+          ? `${selectedTitles[0]} quiz`
+          : "Generated note quiz",
+      );
       setView("preview");
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Quiz generation failed");
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Quiz generation failed",
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -323,7 +438,11 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     );
   }
 
-  function updateDraftChoice(questionIndex: number, choiceIndex: number, value: string) {
+  function updateDraftChoice(
+    questionIndex: number,
+    choiceIndex: number,
+    value: string,
+  ) {
     setDraftQuestions((current) =>
       current.map((question, index) => {
         if (index !== questionIndex) {
@@ -349,7 +468,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           type,
           choices:
             type === "multiple_choice"
-              ? question.choices ?? ["", "", "", ""]
+              ? (question.choices ?? ["", "", "", ""])
               : type === "true_false"
                 ? ["True", "False"]
                 : undefined,
@@ -359,13 +478,22 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   }
 
   function removeDraftQuestion(index: number) {
-    setDraftQuestions((current) => current.filter((_, questionIndex) => questionIndex !== index));
-    setDraftQuestionIndex((current) => Math.max(0, Math.min(current, draftQuestions.length - 2)));
+    setDraftQuestions((current) =>
+      current.filter((_, questionIndex) => questionIndex !== index),
+    );
+    setDraftQuestionIndex((current) =>
+      Math.max(0, Math.min(current, draftQuestions.length - 2)),
+    );
   }
 
   function addDraftQuestion() {
-    const selectedTitles = notes.filter((note) => selectedNoteIds.includes(note.id)).map((note) => note.title);
-    setDraftQuestions((current) => [...current, makeDraftQuestion(selectedTitles)]);
+    const selectedTitles = notes
+      .filter((note) => selectedNoteIds.includes(note.id))
+      .map((note) => note.title);
+    setDraftQuestions((current) => [
+      ...current,
+      makeDraftQuestion(selectedTitles),
+    ]);
     setDraftQuestionIndex(draftQuestions.length);
   }
 
@@ -377,34 +505,45 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     setError(null);
     setIsSaving(true);
     try {
-      const sourceNoteTitles = getSourceTitles(draftQuestions, notes, selectedNoteIds);
+      const sourceNoteTitles = getSourceTitles(
+        draftQuestions,
+        notes,
+        selectedNoteIds,
+      );
       const payload = await readJsonResponse<{ quiz: SavedQuiz }>(
-        await fetch(editingQuizId ? `/api/quizzes/${editingQuizId}` : "/api/quizzes", {
-          method: editingQuizId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: draftTitle,
-            sourceNoteIds: selectedNoteIds,
-            sourceNoteTitles,
-            questions: draftQuestions,
-            difficulty,
-            mode,
-            questionTypes,
-            timeLimitMinutes: mode === "exam" ? timeMinutes : null,
-          }),
-        }),
+        await fetch(
+          editingQuizId ? `/api/quizzes/${editingQuizId}` : "/api/quizzes",
+          {
+            method: editingQuizId ? "PATCH" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: draftTitle,
+              sourceNoteIds: selectedNoteIds,
+              sourceNoteTitles,
+              questions: draftQuestions,
+              difficulty,
+              mode,
+              questionTypes,
+              timeLimitMinutes: mode === "exam" ? timeMinutes : null,
+            }),
+          },
+        ),
       );
 
       setQuizzes((current) =>
         editingQuizId
-          ? current.map((quiz) => (quiz.id === payload.quiz.id ? payload.quiz : quiz))
+          ? current.map((quiz) =>
+              quiz.id === payload.quiz.id ? payload.quiz : quiz,
+            )
           : [payload.quiz, ...current],
       );
       setActiveQuizId(payload.quiz.id);
       setView("library");
       setEditingQuizId(null);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Quiz save failed");
+      setError(
+        saveError instanceof Error ? saveError.message : "Quiz save failed",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -426,7 +565,11 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
       setQuizzes((current) => [payload.quiz, ...current]);
       setActiveQuizId(payload.quiz.id);
     } catch (copyError) {
-      setError(copyError instanceof Error ? copyError.message : "Quiz duplicate failed");
+      setError(
+        copyError instanceof Error
+          ? copyError.message
+          : "Quiz duplicate failed",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -458,13 +601,19 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
       );
 
       setQuizzes((current) => current.filter((quiz) => quiz.id !== quizId));
-      setAttempts((current) => current.filter((attempt) => attempt.quizId !== quizId));
+      setAttempts((current) =>
+        current.filter((attempt) => attempt.quizId !== quizId),
+      );
       setDeleteQuizId(null);
       if (activeQuizId === quizId) {
         setActiveQuizId(quizzes.find((quiz) => quiz.id !== quizId)?.id ?? "");
       }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Quiz delete failed");
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Quiz delete failed",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -493,7 +642,10 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
     }));
   }
 
-  async function evaluateQuestion(question: QuizQuestion, answer: string): Promise<QuizEvaluation> {
+  async function evaluateQuestion(
+    question: QuizQuestion,
+    answer: string,
+  ): Promise<QuizEvaluation> {
     const objective = gradeObjectiveAnswer(question, answer);
     if (objective) {
       return objective;
@@ -528,7 +680,11 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         },
       }));
     } catch (evaluationError) {
-      setError(evaluationError instanceof Error ? evaluationError.message : "Answer evaluation failed");
+      setError(
+        evaluationError instanceof Error
+          ? evaluationError.message
+          : "Answer evaluation failed",
+      );
     } finally {
       setIsEvaluating(false);
     }
@@ -578,7 +734,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
       }
 
       const summary = summarizeAttempt(activeQuiz.questions, completedAnswers);
-      const timeSpentSeconds = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : null;
+      const timeSpentSeconds = startedAt
+        ? Math.max(0, Math.round((Date.now() - startedAt) / 1000))
+        : null;
       const payload = await readJsonResponse<{ attempt: QuizAttempt }>(
         await fetch(`/api/quizzes/${activeQuiz.id}/attempts`, {
           method: "POST",
@@ -591,20 +749,31 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         }),
       );
 
-      setAnswers(Object.fromEntries(summary.answers.map((answer) => [answer.questionId, answer])));
+      setAnswers(
+        Object.fromEntries(
+          summary.answers.map((answer) => [answer.questionId, answer]),
+        ),
+      );
       setAttempts((current) => [payload.attempt, ...current]);
       setLatestAttempt(payload.attempt);
       setSelectedAttemptId(payload.attempt.id);
       setView("results");
     } catch (finishError) {
-      setError(finishError instanceof Error ? finishError.message : "Quiz finish failed");
+      setError(
+        finishError instanceof Error
+          ? finishError.message
+          : "Quiz finish failed",
+      );
     } finally {
       setIsFinishing(false);
     }
   }
 
   function renderLibrary() {
-    const totalQuestions = quizzes.reduce((sum, quiz) => sum + quiz.questionCount, 0);
+    const totalQuestions = quizzes.reduce(
+      (sum, quiz) => sum + quiz.questionCount,
+      0,
+    );
 
     return (
       <section className="flex h-full min-h-0 flex-col gap-5">
@@ -613,140 +782,168 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <StatPill>{quizzes.length} quizzes</StatPill>
             <StatPill>{totalQuestions} questions</StatPill>
           </div>
-          <Button type="button" leadingIcon={<Plus className="size-4" />} onClick={openCreate}>
+          <Button
+            type="button"
+            leadingIcon={<Plus className="size-4" />}
+            onClick={openCreate}
+          >
             Create quiz
           </Button>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface/70">
         {quizzes.length === 0 ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface/70 p-8">
+          <div className="flex h-full items-center justify-center p-8">
             <div className="flex max-w-sm flex-col items-center text-center">
               <FileQuestion className="mb-5 size-12 text-muted-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">No saved quizzes</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Saved quizzes appear here.</p>
+              <h2 className="text-lg font-semibold text-foreground">
+                No saved quizzes
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Saved quizzes appear here.
+              </p>
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 xl:grid-cols-2">
+          <div className="grid h-full auto-rows-min grid-cols-1 content-start items-start gap-4 overflow-y-auto p-4 md:grid-cols-2 xl:grid-cols-3">
             {quizzes.map((quiz) => {
-              const quizAttempts = attempts.filter((attempt) => attempt.quizId === quiz.id);
-              const lastAttempt = quizAttempts[0];
+              const lastAttempt = attempts.find((a) => a.quizId === quiz.id);
               const isDeleting = deleteQuizId === quiz.id;
+              const isMenuOpen = moreOpenId === quiz.id;
 
               return (
-                <Card
+                <div
                   key={quiz.id}
+                  role="button"
+                  tabIndex={0}
                   className={cx(
-                    "transition hover:border-border-strong hover:bg-surface-muted",
-                    activeQuiz?.id === quiz.id ? "border-accent/70" : "",
+                    "relative cursor-pointer rounded-[var(--radius-xl)] border bg-card text-card-foreground shadow-[var(--shadow-card)] transition hover:border-border-strong hover:bg-surface-muted",
+                    activeQuiz?.id === quiz.id ? "border-accent/70" : "border-border",
                   )}
+                  onClick={() => startTaking(quiz)}
+                  onKeyDown={(e) => e.key === "Enter" && startTaking(quiz)}
                 >
-                  <CardHeader className="gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="accent">{quiz.mode}</Badge>
-                      <Badge variant="outline">{quiz.difficulty}</Badge>
-                      <Badge variant="outline">{quiz.questionCount} questions</Badge>
-                      {lastAttempt ? <Badge variant="neutral">{formatPercent(lastAttempt.score)} last score</Badge> : null}
-                    </div>
-                    <div>
-                      <CardTitle>{quiz.title}</CardTitle>
-                      <CardDescription>Updated {formatDate(quiz.updatedAt)}</CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="flex flex-wrap gap-2">
-                      {quiz.sourceNoteTitles.slice(0, 5).map((title) => (
-                        <Badge key={title} variant="neutral">
-                          {title}
+                  <div className="flex items-start gap-3 p-5">
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="accent">{quiz.mode}</Badge>
+                        <Badge variant="outline">{quiz.difficulty}</Badge>
+                        <Badge variant="outline">
+                          {quiz.questionCount} questions
                         </Badge>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium text-foreground">Questions</h3>
-                      <div className="grid gap-2">
-                        {quiz.questions.slice(0, 2).map((question, index) => (
-                          <button
-                            key={question.id}
-                            type="button"
-                            className="rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
-                            onClick={() => {
-                              setActiveQuizId(quiz.id);
-                              editQuiz(quiz);
-                            }}
-                          >
-                            <span className="mb-1 flex items-center gap-2">
-                              <Badge variant="outline">Question {index + 1}</Badge>
-                              <Badge variant="neutral">{question.type.replace("_", " ")}</Badge>
-                            </span>
-                            <MarkdownText markdown={question.prompt} className="line-clamp-2 text-sm" />
-                          </button>
-                        ))}
+                        {lastAttempt ? (
+                          <Badge variant="neutral">
+                            {formatPercent(lastAttempt.score)} last
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {quiz.title}
+                        </p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          Updated {formatDate(quiz.updatedAt)}
+                        </p>
                       </div>
                     </div>
 
-                    {quizAttempts.length > 0 ? (
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-medium text-foreground">Previous results</h3>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {quizAttempts.slice(0, 4).map((attempt) => (
-                            <button
-                              key={attempt.id}
-                              type="button"
-                              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
-                              onClick={() => {
-                                setActiveQuizId(quiz.id);
-                                setSelectedAttemptId(attempt.id);
-                                setLatestAttempt(attempt);
-                                setView("results");
-                              }}
-                            >
-                              <span className="truncate text-muted-foreground">{formatDate(attempt.completedAt)}</span>
-                              <Badge variant="accent">{formatPercent(attempt.score)}</Badge>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
-                        Attempts appear after quiz completion.
-                      </p>
-                    )}
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-surface-elevated hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMoreOpenId(isMenuOpen ? null : quiz.id);
+                      }}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </div>
 
-                    {isDeleting ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-danger-soft px-3 py-3 text-sm text-danger dark:border-red-950/70">
+                  {isMenuOpen ? (
+                    <>
+                      <div
+                        className="fixed inset-0 z-[49]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoreOpenId(null);
+                        }}
+                      />
+                      <div className="absolute right-2 top-11 z-[50] min-w-[148px] overflow-hidden rounded-lg border border-border bg-surface-elevated py-1 shadow-[var(--shadow-card)]">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-surface-muted"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            editQuiz(quiz);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Pencil className="size-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-surface-muted"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void duplicateQuiz(quiz);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Copy className="size-3.5" />
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-danger hover:bg-danger-soft"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteQuizId(quiz.id);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {isDeleting ? (
+                    <div
+                      className="border-t border-border px-5 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-danger">
                         <span>Delete quiz and saved attempts?</span>
-                        <span className="flex flex-wrap gap-2">
-                          <Button type="button" size="sm" variant="destructive" disabled={isSaving} onClick={() => void deleteQuiz(quiz.id)}>
-                            Confirm delete
+                        <span className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={isSaving}
+                            onClick={() => void deleteQuiz(quiz.id)}
+                          >
+                            Confirm
                           </Button>
-                          <Button type="button" size="sm" variant="outline" onClick={() => setDeleteQuizId(null)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeleteQuizId(null)}
+                          >
                             Cancel
                           </Button>
                         </span>
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" leadingIcon={<Play className="size-4" />} onClick={() => startTaking(quiz)}>
-                          Take
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" leadingIcon={<Pencil className="size-4" />} onClick={() => editQuiz(quiz)}>
-                          Edit
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" leadingIcon={<Copy className="size-4" />} disabled={isSaving} onClick={() => void duplicateQuiz(quiz)}>
-                          Duplicate
-                        </Button>
-                        <Button type="button" size="sm" variant="destructive" leadingIcon={<Trash2 className="size-4" />} onClick={() => setDeleteQuizId(quiz.id)}>
-                          Delete
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
         )}
+        </div>
       </section>
     );
   }
@@ -757,7 +954,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         <CardHeader className="shrink-0 gap-4 py-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-xl">Create Quiz</CardTitle>
-            <CardDescription>Choose note context and quiz settings.</CardDescription>
+            <CardDescription>
+              Choose note context and quiz settings.
+            </CardDescription>
           </div>
           <div className="flex shrink-0 gap-2">
             <StepPill active>Context</StepPill>
@@ -783,8 +982,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     key={note.id}
                     className={cx(
                       "flex min-h-20 cursor-pointer items-start gap-4 rounded-lg border border-border bg-surface px-4 py-4 text-sm transition",
-                      note.hasEmbedding ? "hover:border-border-strong hover:bg-surface-muted" : "cursor-not-allowed opacity-60",
-                      selectedNoteIds.includes(note.id) ? "border-accent bg-accent-soft/60" : "",
+                      note.hasEmbedding
+                        ? "hover:border-border-strong hover:bg-surface-muted"
+                        : "cursor-not-allowed opacity-60",
+                      selectedNoteIds.includes(note.id)
+                        ? "border-accent bg-accent-soft/60"
+                        : "",
                     )}
                   >
                     <input
@@ -795,9 +998,13 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                       onChange={() => toggleNote(note.id)}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold text-foreground">{note.title}</span>
+                      <span className="block truncate font-semibold text-foreground">
+                        {note.title}
+                      </span>
                       <span className="mt-1 block text-sm text-muted-foreground">
-                        {note.hasEmbedding ? "Embedding ready" : "Embedding required"}
+                        {note.hasEmbedding
+                          ? "Embedding ready"
+                          : "Embedding required"}
                       </span>
                     </span>
                   </label>
@@ -808,14 +1015,18 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
           <section className="grid shrink-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-foreground">Question types</h2>
+              <h2 className="text-sm font-semibold text-foreground">
+                Question types
+              </h2>
               <div className="grid gap-2 md:grid-cols-3">
                 {questionTypeOptions.map((option) => (
                   <label
                     key={option.value}
                     className={cx(
                       "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm transition hover:bg-surface-muted",
-                      questionTypes.includes(option.value) ? "border-accent bg-accent-soft/60 text-accent" : "",
+                      questionTypes.includes(option.value)
+                        ? "border-accent bg-accent-soft/60 text-accent"
+                        : "",
                     )}
                   >
                     <input
@@ -834,7 +1045,7 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     key={option.value}
                     type="button"
                     className={cx(
-                    "rounded-lg border px-3 py-2 text-left text-sm transition",
+                      "rounded-lg border px-3 py-2 text-left text-sm transition",
                       mode === option.value
                         ? "border-accent bg-accent-soft text-accent"
                         : "border-border bg-surface hover:bg-surface-muted",
@@ -842,7 +1053,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     onClick={() => setMode(option.value)}
                   >
                     <span className="block font-semibold">{option.label}</span>
-                    <span className="mt-1 block text-muted-foreground">{option.description}</span>
+                    <span className="mt-1 block text-muted-foreground">
+                      {option.description}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -851,7 +1064,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Difficulty
-                <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
+                <Select
+                  value={difficulty}
+                  onChange={(event) =>
+                    setDifficulty(event.target.value as QuizDifficulty)
+                  }
+                >
                   {difficultyOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -861,11 +1079,28 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Questions
-                <Input min={1} max={25} type="number" value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} />
+                <Input
+                  min={1}
+                  max={25}
+                  type="number"
+                  value={questionCount}
+                  onChange={(event) =>
+                    setQuestionCount(Number(event.target.value))
+                  }
+                />
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Time limit
-                <Input min={1} max={240} type="number" disabled={mode !== "exam"} value={timeMinutes} onChange={(event) => setTimeMinutes(Number(event.target.value))} />
+                <Input
+                  min={1}
+                  max={240}
+                  type="number"
+                  disabled={mode !== "exam"}
+                  value={timeMinutes}
+                  onChange={(event) =>
+                    setTimeMinutes(Number(event.target.value))
+                  }
+                />
               </label>
             </div>
           </section>
@@ -874,12 +1109,22 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             <Button
               type="button"
               disabled={!canGenerate}
-              leadingIcon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              leadingIcon={
+                isGenerating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
+                )
+              }
               onClick={() => void generatePreview()}
             >
               Generate preview
             </Button>
-            <Button type="button" variant="outline" onClick={() => openLibrary()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openLibrary()}
+            >
               Cancel
             </Button>
           </div>
@@ -905,11 +1150,17 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           <section className="grid shrink-0 gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_160px_140px]">
             <label className="space-y-1.5 text-sm font-medium text-foreground">
               Quiz name
-              <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+              <Input
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
+              />
             </label>
             <label className="space-y-1.5 text-sm font-medium text-foreground">
               Mode
-              <Select value={mode} onChange={(event) => setMode(event.target.value as QuizMode)}>
+              <Select
+                value={mode}
+                onChange={(event) => setMode(event.target.value as QuizMode)}
+              >
                 {modeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -919,7 +1170,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </label>
             <label className="space-y-1.5 text-sm font-medium text-foreground">
               Difficulty
-              <Select value={difficulty} onChange={(event) => setDifficulty(event.target.value as QuizDifficulty)}>
+              <Select
+                value={difficulty}
+                onChange={(event) =>
+                  setDifficulty(event.target.value as QuizDifficulty)
+                }
+              >
                 {difficultyOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -929,14 +1185,23 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </label>
             <label className="space-y-1.5 text-sm font-medium text-foreground">
               Time
-              <Input min={1} max={240} type="number" disabled={mode !== "exam"} value={timeMinutes} onChange={(event) => setTimeMinutes(Number(event.target.value))} />
+              <Input
+                min={1}
+                max={240}
+                type="number"
+                disabled={mode !== "exam"}
+                value={timeMinutes}
+                onChange={(event) => setTimeMinutes(Number(event.target.value))}
+              />
             </label>
           </section>
 
-          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <section className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60">
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-3">
-                <h2 className="text-sm font-semibold text-foreground">Questions</h2>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Questions
+                </h2>
                 <Button
                   type="button"
                   size="sm"
@@ -952,8 +1217,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                 {draftQuestions.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center">
                     <FileQuestion className="mx-auto mb-2 size-7 text-muted-foreground" />
-                    <p className="text-sm font-medium text-foreground">No questions</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Add or generate from context.</p>
+                    <p className="text-sm font-medium text-foreground">
+                      No questions
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Add or generate from context.
+                    </p>
                   </div>
                 ) : (
                   draftQuestions.map((question, index) => (
@@ -968,7 +1237,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                       )}
                       onClick={() => setDraftQuestionIndex(index)}
                     >
-                      <span className="block font-semibold">Question {index + 1}</span>
+                      <span className="block font-semibold">
+                        Question {index + 1}
+                      </span>
                       <span className="mt-1 block truncate text-xs text-muted-foreground">
                         {question.prompt || question.type.replace("_", " ")}
                       </span>
@@ -979,31 +1250,48 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </aside>
 
             {activeDraftQuestion ? (
-              <div className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-4">
-                <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-                  <Badge variant="outline">Question {draftQuestionIndex + 1}</Badge>
-                  <Button type="button" size="sm" variant="ghost" leadingIcon={<Trash2 className="size-4" />} onClick={() => removeDraftQuestion(draftQuestionIndex)}>
+              <div className="overflow-y-auto rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <Badge variant="outline">
+                    Question {draftQuestionIndex + 1}
+                  </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    leadingIcon={<Trash2 className="size-4" />}
+                    onClick={() => removeDraftQuestion(draftQuestionIndex)}
+                  >
                     Remove
                   </Button>
                 </div>
 
-                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
-                  <div className="flex min-h-0 flex-col gap-3">
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Prompt
                       <Textarea
                         rows={7}
                         value={activeDraftQuestion.prompt}
-                        className="min-h-0 flex-1 resize-none"
-                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { prompt: event.target.value })}
+                        className="resize-none"
+                        onChange={(event) =>
+                          updateDraftQuestion(draftQuestionIndex, {
+                            prompt: event.target.value,
+                          })
+                        }
                       />
                     </label>
-                    <div className="grid shrink-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                    <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
                       <label className="space-y-1.5 text-sm font-medium text-foreground">
                         Type
                         <Select
                           value={activeDraftQuestion.type}
-                          onChange={(event) => updateDraftQuestionType(draftQuestionIndex, event.target.value as QuizQuestionType)}
+                          onChange={(event) =>
+                            updateDraftQuestionType(
+                              draftQuestionIndex,
+                              event.target.value as QuizQuestionType,
+                            )
+                          }
                         >
                           {questionTypeOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -1015,7 +1303,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                       <label className="space-y-1.5 text-sm font-medium text-foreground">
                         Source metadata
                         <Input
-                          value={activeDraftQuestion.sourceNoteTitles.join(", ")}
+                          value={activeDraftQuestion.sourceNoteTitles.join(
+                            ", ",
+                          )}
                           onChange={(event) =>
                             updateDraftQuestion(draftQuestionIndex, {
                               sourceNoteTitles: event.target.value
@@ -1029,34 +1319,55 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     </div>
                   </div>
 
-                  <div className="flex min-h-0 flex-col gap-3">
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Correct answer
                       <Textarea
                         rows={7}
                         value={activeDraftQuestion.correctAnswer}
-                        className="min-h-0 flex-1 resize-none"
-                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { correctAnswer: event.target.value })}
+                        className="resize-none"
+                        onChange={(event) =>
+                          updateDraftQuestion(draftQuestionIndex, {
+                            correctAnswer: event.target.value,
+                          })
+                        }
                       />
                     </label>
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Explanation
                       <Textarea
                         rows={3}
                         value={activeDraftQuestion.explanation}
-                        className="min-h-0 flex-1 resize-none"
-                        onChange={(event) => updateDraftQuestion(draftQuestionIndex, { explanation: event.target.value })}
+                        className="resize-none"
+                        onChange={(event) =>
+                          updateDraftQuestion(draftQuestionIndex, {
+                            explanation: event.target.value,
+                          })
+                        }
                       />
                     </label>
                   </div>
                 </div>
 
-                {activeDraftQuestion.type === "multiple_choice" && activeDraftQuestion.choices?.length ? (
+                {activeDraftQuestion.type === "multiple_choice" &&
+                activeDraftQuestion.choices?.length ? (
                   <div className="mt-3 grid shrink-0 gap-2 md:grid-cols-4">
                     {activeDraftQuestion.choices.map((choice, choiceIndex) => (
-                      <label key={`${activeDraftQuestion.id}-${choiceIndex}`} className="space-y-1.5 text-sm font-medium text-foreground">
+                      <label
+                        key={`${activeDraftQuestion.id}-${choiceIndex}`}
+                        className="space-y-1.5 text-sm font-medium text-foreground"
+                      >
                         Choice {choiceIndex + 1}
-                        <Input value={choice} onChange={(event) => updateDraftChoice(draftQuestionIndex, choiceIndex, event.target.value)} />
+                        <Input
+                          value={choice}
+                          onChange={(event) =>
+                            updateDraftChoice(
+                              draftQuestionIndex,
+                              choiceIndex,
+                              event.target.value,
+                            )
+                          }
+                        />
                       </label>
                     ))}
                   </div>
@@ -1066,8 +1377,12 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               <div className="flex min-h-0 items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface-muted">
                 <div className="text-center">
                   <FileQuestion className="mx-auto mb-3 size-8 text-muted-foreground" />
-                  <p className="font-semibold text-foreground">No questions in preview</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Add a question or go back to generate from context.</p>
+                  <p className="font-semibold text-foreground">
+                    No questions in preview
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Add a question or go back to generate from context.
+                  </p>
                 </div>
               </div>
             )}
@@ -1076,16 +1391,32 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
-              disabled={draftQuestions.length === 0 || !draftTitle.trim() || isSaving}
-              leadingIcon={isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              disabled={
+                draftQuestions.length === 0 || !draftTitle.trim() || isSaving
+              }
+              leadingIcon={
+                isSaving ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="size-4" />
+                )
+              }
               onClick={() => void saveDraftQuiz()}
             >
               Save quiz
             </Button>
-            <Button type="button" variant="outline" onClick={() => setView(editingQuizId ? "library" : "create")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setView(editingQuizId ? "library" : "create")}
+            >
               Back
             </Button>
-            <Button type="button" variant="ghost" onClick={() => openLibrary(activeQuizId)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => openLibrary(activeQuizId)}
+            >
               Cancel
             </Button>
           </div>
@@ -1128,28 +1459,38 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           <div className="h-2 shrink-0 rounded-full bg-surface-muted">
             <div
               className="h-2 rounded-full bg-accent transition-all"
-              style={{ width: `${((currentIndex + 1) / activeQuiz.questions.length) * 100}%` }}
+              style={{
+                width: `${((currentIndex + 1) / activeQuiz.questions.length) * 100}%`,
+              }}
             />
           </div>
           <div className="min-h-0 shrink overflow-y-auto rounded-lg border border-border bg-surface-muted p-4">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{currentQuestion.type.replace("_", " ")}</Badge>
+              <Badge variant="outline">
+                {currentQuestion.type.replace("_", " ")}
+              </Badge>
               {currentQuestion.sourceNoteTitles.map((title) => (
                 <Badge key={title} variant="neutral">
                   {title}
                 </Badge>
               ))}
             </div>
-            <MarkdownText markdown={currentQuestion.prompt} className="space-y-3 text-xl font-semibold leading-8" />
+            <MarkdownText
+              markdown={currentQuestion.prompt}
+              className="space-y-3 text-xl font-semibold leading-8"
+            />
           </div>
-          {currentQuestion.type === "multiple_choice" || currentQuestion.type === "true_false" ? (
+          {currentQuestion.type === "multiple_choice" ||
+          currentQuestion.type === "true_false" ? (
             <div className="grid shrink-0 gap-2">
               {(currentQuestion.choices ?? []).map((choice) => (
                 <label
                   key={choice}
                   className={cx(
                     "flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-3 text-sm transition hover:bg-surface-muted",
-                    currentAnswer === choice ? "border-accent bg-accent-soft text-accent" : "text-foreground",
+                    currentAnswer === choice
+                      ? "border-accent bg-accent-soft text-accent"
+                      : "text-foreground",
                   )}
                 >
                   <input
@@ -1157,7 +1498,9 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
                     name={currentQuestion.id}
                     className="size-4 accent-[var(--accent)]"
                     checked={currentAnswer === choice}
-                    disabled={Boolean(currentEvaluation) || examExpired || isFinishing}
+                    disabled={
+                      Boolean(currentEvaluation) || examExpired || isFinishing
+                    }
                     onChange={() => updateAnswer(currentQuestion.id, choice)}
                   />
                   <MarkdownText markdown={choice} className="text-sm" />
@@ -1167,11 +1510,15 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           ) : (
             <Textarea
               value={currentAnswer}
-              disabled={Boolean(currentEvaluation) || examExpired || isFinishing}
+              disabled={
+                Boolean(currentEvaluation) || examExpired || isFinishing
+              }
               placeholder="Type your answer..."
               rows={7}
               className="min-h-0 flex-1 resize-none"
-              onChange={(event) => updateAnswer(currentQuestion.id, event.target.value)}
+              onChange={(event) =>
+                updateAnswer(currentQuestion.id, event.target.value)
+              }
             />
           )}
           {currentEvaluation && activeQuiz.mode === "practice" ? (
@@ -1184,32 +1531,88 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               )}
             >
               <div className="font-medium">
-                {currentEvaluation.correct ? "Correct" : "Needs work"} - Score {formatPercent(currentEvaluation.score)}
+                {currentEvaluation.correct ? "Correct" : "Needs work"} - Score{" "}
+                {formatPercent(currentEvaluation.score)}
               </div>
-              <MarkdownText markdown={currentEvaluation.feedback} className="mt-1 space-y-2" />
+              <MarkdownText
+                markdown={currentEvaluation.feedback}
+                className="mt-1 space-y-2"
+              />
               <div className="mt-2 font-medium">Ideal answer</div>
-              <MarkdownText markdown={currentEvaluation.idealAnswer} className="mt-1 space-y-2" />
+              <MarkdownText
+                markdown={currentEvaluation.idealAnswer}
+                className="mt-1 space-y-2"
+              />
             </div>
           ) : null}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={currentIndex === 0 || isFinishing} onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={currentIndex === 0 || isFinishing}
+                onClick={() =>
+                  setCurrentIndex((index) => Math.max(0, index - 1))
+                }
+              >
                 Previous
               </Button>
-              <Button type="button" variant="outline" disabled={currentIndex >= activeQuiz.questions.length - 1 || isFinishing} onClick={() => setCurrentIndex((index) => Math.min(activeQuiz.questions.length - 1, index + 1))}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  currentIndex >= activeQuiz.questions.length - 1 || isFinishing
+                }
+                onClick={() =>
+                  setCurrentIndex((index) =>
+                    Math.min(activeQuiz.questions.length - 1, index + 1),
+                  )
+                }
+              >
                 Next
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {activeQuiz.mode === "practice" ? (
-                <Button type="button" variant="outline" disabled={!currentAnswer.trim() || Boolean(currentEvaluation) || isEvaluating || isFinishing} leadingIcon={isEvaluating ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} onClick={() => void checkCurrentAnswer()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    !currentAnswer.trim() ||
+                    Boolean(currentEvaluation) ||
+                    isEvaluating ||
+                    isFinishing
+                  }
+                  leadingIcon={
+                    isEvaluating ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-4" />
+                    )
+                  }
+                  onClick={() => void checkCurrentAnswer()}
+                >
                   Check answer
                 </Button>
               ) : null}
-              <Button type="button" variant="outline" disabled={isFinishing} onClick={() => openLibrary(activeQuiz.id)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isFinishing}
+                onClick={() => openLibrary(activeQuiz.id)}
+              >
                 Exit
               </Button>
-              <Button type="button" disabled={isFinishing} leadingIcon={isFinishing ? <Loader2 className="size-4 animate-spin" /> : undefined} onClick={() => void finishAttempt()}>
+              <Button
+                type="button"
+                disabled={isFinishing}
+                leadingIcon={
+                  isFinishing ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : undefined
+                }
+                onClick={() => void finishAttempt()}
+              >
                 Finish quiz
               </Button>
             </div>
@@ -1224,12 +1627,19 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
       return null;
     }
 
-    const byQuestionId = new Map(selectedAttempt.answers.map((answer) => [answer.questionId, answer]));
-    const resultQuestionIndex = Math.min(currentIndex, activeQuiz.questions.length - 1);
+    const byQuestionId = new Map(
+      selectedAttempt.answers.map((answer) => [answer.questionId, answer]),
+    );
+    const resultQuestionIndex = Math.min(
+      currentIndex,
+      activeQuiz.questions.length - 1,
+    );
     const resultQuestion = activeQuiz.questions[resultQuestionIndex];
-    const resultAnswer = resultQuestion ? byQuestionId.get(resultQuestion.id) : undefined;
+    const resultAnswer = resultQuestion
+      ? byQuestionId.get(resultQuestion.id)
+      : undefined;
     const resultEvaluation = resultQuestion
-      ? resultAnswer?.evaluation ?? createUnansweredEvaluation(resultQuestion)
+      ? (resultAnswer?.evaluation ?? createUnansweredEvaluation(resultQuestion))
       : null;
 
     return (
@@ -1241,19 +1651,27 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
             <div className="rounded-lg border border-border bg-surface-muted p-4">
-              <div className="text-3xl font-semibold text-foreground">{formatPercent(selectedAttempt.score)}</div>
+              <div className="text-3xl font-semibold text-foreground">
+                {formatPercent(selectedAttempt.score)}
+              </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                {selectedAttempt.correctCount}/{selectedAttempt.questionCount} correct, {selectedAttempt.answeredCount} answered.
+                {selectedAttempt.correctCount}/{selectedAttempt.questionCount}{" "}
+                correct, {selectedAttempt.answeredCount} answered.
               </p>
             </div>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>Completed {formatDate(selectedAttempt.completedAt)}</p>
-              {selectedAttempt.timeSpentSeconds !== null ? <p>Time spent {formatTimer(selectedAttempt.timeSpentSeconds)}</p> : null}
+              {selectedAttempt.timeSpentSeconds !== null ? (
+                <p>
+                  Time spent {formatTimer(selectedAttempt.timeSpentSeconds)}
+                </p>
+              ) : null}
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
               {activeQuiz.questions.map((question, index) => {
                 const answer = byQuestionId.get(question.id);
-                const evaluation = answer?.evaluation ?? createUnansweredEvaluation(question);
+                const evaluation =
+                  answer?.evaluation ?? createUnansweredEvaluation(question);
                 return (
                   <button
                     key={question.id}
@@ -1277,10 +1695,18 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
               })}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" leadingIcon={<RotateCcw className="size-4" />} onClick={() => startTaking(activeQuiz)}>
+              <Button
+                type="button"
+                leadingIcon={<RotateCcw className="size-4" />}
+                onClick={() => startTaking(activeQuiz)}
+              >
                 Retake
               </Button>
-              <Button type="button" variant="outline" onClick={() => openLibrary(activeQuiz.id)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => openLibrary(activeQuiz.id)}
+              >
                 Back to detail
               </Button>
             </div>
@@ -1288,10 +1714,19 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
         </Card>
 
         {resultQuestion && resultEvaluation ? (
-          <Card className={cx("flex min-h-0 flex-col", resultEvaluation.correct ? "border-green-200 dark:border-green-950/70" : "border-red-200 dark:border-red-950/70")}>
+          <Card
+            className={cx(
+              "flex min-h-0 flex-col",
+              resultEvaluation.correct
+                ? "border-green-200 dark:border-green-950/70"
+                : "border-red-200 dark:border-red-950/70",
+            )}
+          >
             <CardHeader className="shrink-0 py-5">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">Question {resultQuestionIndex + 1}</Badge>
+                <Badge variant="outline">
+                  Question {resultQuestionIndex + 1}
+                </Badge>
                 {resultEvaluation.correct ? (
                   <Badge variant="accent">
                     <CheckCircle2 className="size-3.5" />
@@ -1308,23 +1743,48 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col gap-3 text-sm">
               <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
-                <MarkdownText markdown={resultQuestion.prompt} className="space-y-2 font-medium" />
+                <MarkdownText
+                  markdown={resultQuestion.prompt}
+                  className="space-y-2 font-medium"
+                />
               </div>
               <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-2">
                 <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
-                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Your answer</div>
-                  <MarkdownText markdown={resultAnswer?.answer.trim() || "Unanswered"} className="space-y-2" />
+                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Your answer
+                  </div>
+                  <MarkdownText
+                    markdown={resultAnswer?.answer.trim() || "Unanswered"}
+                    className="space-y-2"
+                  />
                 </div>
                 <div className="min-h-0 overflow-y-auto rounded-lg border border-border bg-surface-muted p-3">
-                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Correct answer</div>
-                  <MarkdownText markdown={resultQuestion.correctAnswer} className="space-y-2" />
+                  <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Correct answer
+                  </div>
+                  <MarkdownText
+                    markdown={resultQuestion.correctAnswer}
+                    className="space-y-2"
+                  />
                 </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-surface p-3">
-                <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Feedback</div>
-                <MarkdownText markdown={resultEvaluation.feedback} className="space-y-2" />
-                <div className="mt-3 mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Explanation</div>
-                <MarkdownText markdown={resultQuestion.explanation || resultEvaluation.idealAnswer} className="space-y-2" />
+                <div className="mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Feedback
+                </div>
+                <MarkdownText
+                  markdown={resultEvaluation.feedback}
+                  className="space-y-2"
+                />
+                <div className="mt-3 mb-1 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  Explanation
+                </div>
+                <MarkdownText
+                  markdown={
+                    resultQuestion.explanation || resultEvaluation.idealAnswer
+                  }
+                  className="space-y-2"
+                />
               </div>
             </CardContent>
           </Card>
@@ -1336,20 +1796,8 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
   return (
     <main
       data-testid="quizzes-one-page"
-      className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 overflow-hidden px-4 py-5 sm:px-6 lg:px-8"
+      className="mx-auto flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden px-4 py-5 sm:px-6 lg:px-8"
     >
-      <header className="shrink-0">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">QUIZZES</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            {view === "library" ? "My Quizzes" : "Quizzes"}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Focused quiz library, generation queue, and question editor.
-          </p>
-        </div>
-      </header>
-
       {error ? (
         <div className="shrink-0 rounded-lg border border-red-200 bg-danger-soft px-4 py-2 text-sm text-danger dark:border-red-950/70">
           {error}
@@ -1358,10 +1806,17 @@ export function QuizzesClient({ notes, initialQuizzes, initialAttempts }: Quizze
 
       {view !== "library" ? (
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => openLibrary(activeQuizId)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => openLibrary(activeQuizId)}
+          >
             My Quizzes
           </Button>
-          {view === "take" && activeQuiz ? <Badge variant="outline">Focus mode</Badge> : null}
+          {view === "take" && activeQuiz ? (
+            <Badge variant="outline">Focus mode</Badge>
+          ) : null}
         </div>
       ) : null}
 

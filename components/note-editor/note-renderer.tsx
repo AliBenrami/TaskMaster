@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement } from "react";
+import { isValidElement } from "react";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -75,6 +75,10 @@ function extractCode(children: ReactNode) {
   return getTextContent(children).replace(/\n$/, "");
 }
 
+function cleanMarkdownText(value: string) {
+  return value === "[object Object]" ? "" : value;
+}
+
 export function NoteRenderer({ markdown }: { markdown: string }) {
   if (markdown.trim().length === 0) {
     return (
@@ -107,22 +111,25 @@ export function NoteRenderer({ markdown }: { markdown: string }) {
           },
           pre: (props) => {
             const { children, node } = props;
-            const code = getNodeText(node) || extractCode(Children.only(children));
+            const code = cleanMarkdownText(extractCode(children)) || cleanMarkdownText(getTextContent(node as ReactNode));
             return <CodeBlockView data={{ code }} />;
           },
           code: (props) => {
-            const { children, className, ...rest } = omitNode(props);
+            const { children, className, node, ...rest } = props;
+            const codeText =
+              cleanMarkdownText(getTextContent(children)) ||
+              cleanMarkdownText(getTextContent(node as ReactNode));
             if (className) {
               return (
                 <code className={className} {...rest}>
-                  {children}
+                  {codeText}
                 </code>
               );
             }
 
             return (
               <code className="rounded bg-zinc-100 px-1 py-0.5 text-[0.9em] text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
-                {children}
+                {codeText}
               </code>
             );
           },

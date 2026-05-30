@@ -11,6 +11,7 @@ import type { SidebarBehavior } from "./sidebar-preference";
 
 type TooltipState = { label: string; y: number } | null;
 type MenuPos = { bottom: number; left: number } | null;
+type StudyMenuPos = { top: number; left: number } | null;
 
 type AppSidebarProps = {
   pathname: string;
@@ -62,24 +63,41 @@ export function AppSidebar({
   );
   const [tooltip, setTooltip] = useState<TooltipState>(null);
   const [menuPos, setMenuPos] = useState<MenuPos>(null);
+  const [studyMenuPos, setStudyMenuPos] = useState<StudyMenuPos>(null);
+  const studyButtonRef = useRef<HTMLButtonElement>(null);
+  const studyMenuRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (!menuPos) return;
+    if (!menuPos && !studyMenuPos) return;
     function handleClick(e: MouseEvent) {
+      const target = e.target as Node;
       if (
+        menuPos &&
         menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
+        !menuRef.current.contains(target) &&
         profileRef.current &&
-        !profileRef.current.contains(e.target as Node)
+        !profileRef.current.contains(target)
       ) {
         setMenuPos(null);
       }
+      if (
+        studyMenuPos &&
+        studyMenuRef.current &&
+        !studyMenuRef.current.contains(target) &&
+        studyButtonRef.current &&
+        !studyButtonRef.current.contains(target)
+      ) {
+        setStudyMenuPos(null);
+      }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuPos(null);
+      if (e.key === "Escape") {
+        setMenuPos(null);
+        setStudyMenuPos(null);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
@@ -87,7 +105,7 @@ export function AppSidebar({
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [menuPos]);
+  }, [menuPos, studyMenuPos]);
 
   function toggleMenu() {
     if (menuPos) {
@@ -98,6 +116,27 @@ export function AppSidebar({
     if (!rect) return;
     setMenuPos({
       bottom: window.innerHeight - rect.bottom,
+      left: rect.right + 8,
+    });
+  }
+
+  function toggleStudyMenu() {
+    if (!collapsed) {
+      setStudyMenuPos(null);
+      setStudyOpen((current) => !current);
+      return;
+    }
+
+    if (studyMenuPos) {
+      setStudyMenuPos(null);
+      return;
+    }
+
+    const rect = studyButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    hideTooltip();
+    setStudyMenuPos({
+      top: Math.min(Math.max(12, rect.top), window.innerHeight - 332),
       left: rect.right + 8,
     });
   }
@@ -271,9 +310,10 @@ export function AppSidebar({
 
         <div className="pt-1.5">
           <button
+            ref={studyButtonRef}
             type="button"
-            onClick={() => setStudyOpen((current) => !current)}
-            aria-expanded={studyOpen}
+            onClick={toggleStudyMenu}
+            aria-expanded={collapsed ? Boolean(studyMenuPos) : studyOpen}
             aria-label="Study"
             onMouseEnter={(e) => showTooltip(e, "Study")}
             onMouseLeave={hideTooltip}
@@ -370,6 +410,52 @@ export function AppSidebar({
           ) : null}
         </button>
       </div>
+
+      {collapsed && studyMenuPos ? (
+        <div
+          ref={studyMenuRef}
+          style={{ top: studyMenuPos.top, left: studyMenuPos.left }}
+          className="fixed z-50 w-56 overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        >
+          <div className="flex items-center gap-2.5 px-3.5 py-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-muted text-accent">
+              <NavIconGlyph name="study" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[0.83rem] font-semibold text-foreground">
+                Study
+              </p>
+              <p className="truncate text-[0.7rem] text-muted-foreground">
+                Tools
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          <div className="py-1">
+            {studyNavItems.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setStudyMenuPos(null)}
+                  className={cx(
+                    "block px-3.5 py-2.5 text-[0.83rem] transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+                    active
+                      ? "bg-accent-soft font-medium text-accent"
+                      : "text-foreground",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {menuPos ? (
         <div
