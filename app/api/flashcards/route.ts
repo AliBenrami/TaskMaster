@@ -158,8 +158,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ deck: rowToFlashcardDeck(created) }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Flashcard generation failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[POST /api/flashcards]", error);
+    return NextResponse.json({ error: "Flashcard generation failed" }, { status: 500 });
   }
 }
 
@@ -181,23 +181,28 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid flashcard deck" }, { status: 400 });
   }
 
-  const [updated] = await db
-    .update(flashcards)
-    .set({
-      title: parsed.data.title,
-      sourceNoteIds: parsed.data.sourceNoteIds,
-      cards: parsed.data.cards,
-      cardCount: parsed.data.cards.length,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(flashcards.id, parsed.data.deckId), eq(flashcards.userId, session.user.id)))
-    .returning();
+  try {
+    const [updated] = await db
+      .update(flashcards)
+      .set({
+        title: parsed.data.title,
+        sourceNoteIds: parsed.data.sourceNoteIds,
+        cards: parsed.data.cards,
+        cardCount: parsed.data.cards.length,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(flashcards.id, parsed.data.deckId), eq(flashcards.userId, session.user.id)))
+      .returning();
 
-  if (!updated) {
-    return NextResponse.json({ error: "Flashcard deck not found" }, { status: 404 });
+    if (!updated) {
+      return NextResponse.json({ error: "Flashcard deck not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ deck: rowToFlashcardDeck(updated) });
+  } catch (error) {
+    console.error("[PATCH /api/flashcards]", error);
+    return NextResponse.json({ error: "Failed to save flashcard deck" }, { status: 500 });
   }
-
-  return NextResponse.json({ deck: rowToFlashcardDeck(updated) });
 }
 
 export async function DELETE(req: Request) {

@@ -9,6 +9,7 @@ import {
   Copy,
   FileQuestion,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -290,6 +291,7 @@ export function QuizzesClient({
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [deleteQuizId, setDeleteQuizId] = useState<string | null>(null);
+  const [moreOpenId, setMoreOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const activeQuiz =
@@ -789,8 +791,9 @@ export function QuizzesClient({
           </Button>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-border bg-surface/70">
         {quizzes.length === 0 ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-dashed border-border bg-surface/70 p-8">
+          <div className="flex h-full items-center justify-center p-8">
             <div className="flex max-w-sm flex-col items-center text-center">
               <FileQuestion className="mb-5 size-12 text-muted-foreground" />
               <h2 className="text-lg font-semibold text-foreground">
@@ -802,121 +805,118 @@ export function QuizzesClient({
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 xl:grid-cols-2">
+          <div className="grid h-full auto-rows-min grid-cols-1 content-start items-start gap-4 overflow-y-auto p-4 md:grid-cols-2 xl:grid-cols-3">
             {quizzes.map((quiz) => {
-              const quizAttempts = attempts.filter(
-                (attempt) => attempt.quizId === quiz.id,
-              );
-              const lastAttempt = quizAttempts[0];
+              const lastAttempt = attempts.find((a) => a.quizId === quiz.id);
               const isDeleting = deleteQuizId === quiz.id;
+              const isMenuOpen = moreOpenId === quiz.id;
 
               return (
-                <Card
+                <div
                   key={quiz.id}
+                  role="button"
+                  tabIndex={0}
                   className={cx(
-                    "transition hover:border-border-strong hover:bg-surface-muted",
-                    activeQuiz?.id === quiz.id ? "border-accent/70" : "",
+                    "relative cursor-pointer rounded-[var(--radius-xl)] border bg-card text-card-foreground shadow-[var(--shadow-card)] transition hover:border-border-strong hover:bg-surface-muted",
+                    activeQuiz?.id === quiz.id ? "border-accent/70" : "border-border",
                   )}
+                  onClick={() => startTaking(quiz)}
+                  onKeyDown={(e) => e.key === "Enter" && startTaking(quiz)}
                 >
-                  <CardHeader className="gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="accent">{quiz.mode}</Badge>
-                      <Badge variant="outline">{quiz.difficulty}</Badge>
-                      <Badge variant="outline">
-                        {quiz.questionCount} questions
-                      </Badge>
-                      {lastAttempt ? (
-                        <Badge variant="neutral">
-                          {formatPercent(lastAttempt.score)} last score
+                  <div className="flex items-start gap-3 p-5">
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="accent">{quiz.mode}</Badge>
+                        <Badge variant="outline">{quiz.difficulty}</Badge>
+                        <Badge variant="outline">
+                          {quiz.questionCount} questions
                         </Badge>
-                      ) : null}
-                    </div>
-                    <div>
-                      <CardTitle>{quiz.title}</CardTitle>
-                      <CardDescription>
-                        Updated {formatDate(quiz.updatedAt)}
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="flex flex-wrap gap-2">
-                      {quiz.sourceNoteTitles.slice(0, 5).map((title) => (
-                        <Badge key={title} variant="neutral">
-                          {title}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium text-foreground">
-                        Questions
-                      </h3>
-                      <div className="grid gap-2">
-                        {quiz.questions.slice(0, 2).map((question, index) => (
-                          <button
-                            key={question.id}
-                            type="button"
-                            className="rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
-                            onClick={() => {
-                              setActiveQuizId(quiz.id);
-                              editQuiz(quiz);
-                            }}
-                          >
-                            <span className="mb-1 flex items-center gap-2">
-                              <Badge variant="outline">
-                                Question {index + 1}
-                              </Badge>
-                              <Badge variant="neutral">
-                                {question.type.replace("_", " ")}
-                              </Badge>
-                            </span>
-                            <MarkdownText
-                              markdown={question.prompt}
-                              className="line-clamp-2 text-sm"
-                            />
-                          </button>
-                        ))}
+                        {lastAttempt ? (
+                          <Badge variant="neutral">
+                            {formatPercent(lastAttempt.score)} last
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {quiz.title}
+                        </p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          Updated {formatDate(quiz.updatedAt)}
+                        </p>
                       </div>
                     </div>
 
-                    {quizAttempts.length > 0 ? (
-                      <div className="space-y-2">
-                        <h3 className="text-sm font-medium text-foreground">
-                          Previous results
-                        </h3>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {quizAttempts.slice(0, 4).map((attempt) => (
-                            <button
-                              key={attempt.id}
-                              type="button"
-                              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-left text-sm transition hover:bg-surface-muted"
-                              onClick={() => {
-                                setActiveQuizId(quiz.id);
-                                setSelectedAttemptId(attempt.id);
-                                setLatestAttempt(attempt);
-                                setView("results");
-                              }}
-                            >
-                              <span className="truncate text-muted-foreground">
-                                {formatDate(attempt.completedAt)}
-                              </span>
-                              <Badge variant="accent">
-                                {formatPercent(attempt.score)}
-                              </Badge>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
-                        Attempts appear after quiz completion.
-                      </p>
-                    )}
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:bg-surface-elevated hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMoreOpenId(isMenuOpen ? null : quiz.id);
+                      }}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </div>
 
-                    {isDeleting ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-danger-soft px-3 py-3 text-sm text-danger dark:border-red-950/70">
+                  {isMenuOpen ? (
+                    <>
+                      <div
+                        className="fixed inset-0 z-[49]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoreOpenId(null);
+                        }}
+                      />
+                      <div className="absolute right-2 top-11 z-[50] min-w-[148px] overflow-hidden rounded-lg border border-border bg-surface-elevated py-1 shadow-[var(--shadow-card)]">
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-surface-muted"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            editQuiz(quiz);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Pencil className="size-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-surface-muted"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void duplicateQuiz(quiz);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Copy className="size-3.5" />
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-danger hover:bg-danger-soft"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteQuizId(quiz.id);
+                            setMoreOpenId(null);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {isDeleting ? (
+                    <div
+                      className="border-t border-border px-5 py-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-danger">
                         <span>Delete quiz and saved attempts?</span>
-                        <span className="flex flex-wrap gap-2">
+                        <span className="flex gap-2">
                           <Button
                             type="button"
                             size="sm"
@@ -924,7 +924,7 @@ export function QuizzesClient({
                             disabled={isSaving}
                             onClick={() => void deleteQuiz(quiz.id)}
                           >
-                            Confirm delete
+                            Confirm
                           </Button>
                           <Button
                             type="button"
@@ -936,52 +936,14 @@ export function QuizzesClient({
                           </Button>
                         </span>
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          leadingIcon={<Play className="size-4" />}
-                          onClick={() => startTaking(quiz)}
-                        >
-                          Take
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          leadingIcon={<Pencil className="size-4" />}
-                          onClick={() => editQuiz(quiz)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          leadingIcon={<Copy className="size-4" />}
-                          disabled={isSaving}
-                          onClick={() => void duplicateQuiz(quiz)}
-                        >
-                          Duplicate
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          leadingIcon={<Trash2 className="size-4" />}
-                          onClick={() => setDeleteQuizId(quiz.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
         )}
+        </div>
       </section>
     );
   }
@@ -1234,7 +1196,7 @@ export function QuizzesClient({
             </label>
           </section>
 
-          <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <section className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60">
               <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-3">
                 <h2 className="text-sm font-semibold text-foreground">
@@ -1288,8 +1250,8 @@ export function QuizzesClient({
             </aside>
 
             {activeDraftQuestion ? (
-              <div className="flex min-h-0 flex-col rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-4">
-                <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+              <div className="overflow-y-auto rounded-[var(--radius-xl)] border border-border bg-surface-muted/60 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <Badge variant="outline">
                     Question {draftQuestionIndex + 1}
                   </Badge>
@@ -1304,14 +1266,14 @@ export function QuizzesClient({
                   </Button>
                 </div>
 
-                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-2">
-                  <div className="flex min-h-0 flex-col gap-3">
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Prompt
                       <Textarea
                         rows={7}
                         value={activeDraftQuestion.prompt}
-                        className="min-h-0 flex-1 resize-none"
+                        className="resize-none"
                         onChange={(event) =>
                           updateDraftQuestion(draftQuestionIndex, {
                             prompt: event.target.value,
@@ -1319,7 +1281,7 @@ export function QuizzesClient({
                         }
                       />
                     </label>
-                    <div className="grid shrink-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                    <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
                       <label className="space-y-1.5 text-sm font-medium text-foreground">
                         Type
                         <Select
@@ -1357,13 +1319,13 @@ export function QuizzesClient({
                     </div>
                   </div>
 
-                  <div className="flex min-h-0 flex-col gap-3">
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Correct answer
                       <Textarea
                         rows={7}
                         value={activeDraftQuestion.correctAnswer}
-                        className="min-h-0 flex-1 resize-none"
+                        className="resize-none"
                         onChange={(event) =>
                           updateDraftQuestion(draftQuestionIndex, {
                             correctAnswer: event.target.value,
@@ -1371,12 +1333,12 @@ export function QuizzesClient({
                         }
                       />
                     </label>
-                    <label className="flex min-h-0 flex-1 flex-col gap-1.5 text-sm font-medium text-foreground">
+                    <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                       Explanation
                       <Textarea
                         rows={3}
                         value={activeDraftQuestion.explanation}
-                        className="min-h-0 flex-1 resize-none"
+                        className="resize-none"
                         onChange={(event) =>
                           updateDraftQuestion(draftQuestionIndex, {
                             explanation: event.target.value,
@@ -1836,20 +1798,6 @@ export function QuizzesClient({
       data-testid="quizzes-one-page"
       className="mx-auto flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden px-4 py-5 sm:px-6 lg:px-8"
     >
-      <header className="shrink-0">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-            QUIZZES
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            {view === "library" ? "My Quizzes" : "Quizzes"}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Focused quiz library, generation queue, and question editor.
-          </p>
-        </div>
-      </header>
-
       {error ? (
         <div className="shrink-0 rounded-lg border border-red-200 bg-danger-soft px-4 py-2 text-sm text-danger dark:border-red-950/70">
           {error}
