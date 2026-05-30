@@ -9,6 +9,7 @@ import { requireServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { note } from "@/lib/db/schema";
 import { getParseTestViewModelForRun } from "@/lib/parse-test/service";
+import { DeleteClassButton } from "./delete-class-button";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -123,6 +124,7 @@ export default async function ClassDetailPage(props: {
           <Link href={`/notes?classId=${preview.course.id}`} className={getButtonClassName("outline")}>
             Manage notes
           </Link>
+          <DeleteClassButton runId={runId} classTitle={preview.course.title} />
         </div>
       </div>
 
