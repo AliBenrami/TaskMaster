@@ -21,7 +21,13 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { cx } from "@/lib/utils";
@@ -42,7 +48,9 @@ type FlashcardView = "library" | "create" | "review" | "edit";
 type CreateStep = "context" | "preview";
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as T & { error?: string };
+  const payload = (await response.json().catch(() => null)) as T & {
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(payload?.error || "Request failed");
   }
@@ -102,7 +110,13 @@ function parseTags(value: string) {
     .slice(0, 8);
 }
 
-function MarkdownText({ markdown, className }: { markdown: string; className?: string }) {
+function MarkdownText({
+  markdown,
+  className,
+}: {
+  markdown: string;
+  className?: string;
+}) {
   return (
     <div className={cx("min-w-0 space-y-2 text-foreground", className)}>
       <ReactMarkdown
@@ -110,8 +124,12 @@ function MarkdownText({ markdown, className }: { markdown: string; className?: s
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           p: ({ children }) => <p>{children}</p>,
-          ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
-          ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+          ul: ({ children }) => (
+            <ul className="ml-5 list-disc space-y-1">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="ml-5 list-decimal space-y-1">{children}</ol>
+          ),
           code: ({ children }) => (
             <code className="rounded bg-surface-elevated px-1 py-0.5 font-mono text-[0.92em]">
               {children}
@@ -142,13 +160,17 @@ function DeckEditor({
     onChange(
       withCardCount({
         ...deck,
-        cards: deck.cards.map((card, cardIndex) => (cardIndex === index ? { ...card, ...patch } : card)),
+        cards: deck.cards.map((card, cardIndex) =>
+          cardIndex === index ? { ...card, ...patch } : card,
+        ),
       }),
     );
   }
 
   function addCard() {
-    onChange(withCardCount({ ...deck, cards: [...deck.cards, createBlankCard()] }));
+    onChange(
+      withCardCount({ ...deck, cards: [...deck.cards, createBlankCard()] }),
+    );
   }
 
   function removeCard(index: number) {
@@ -156,14 +178,23 @@ function DeckEditor({
       return;
     }
 
-    onChange(withCardCount({ ...deck, cards: deck.cards.filter((_, cardIndex) => cardIndex !== index) }));
+    onChange(
+      withCardCount({
+        ...deck,
+        cards: deck.cards.filter((_, cardIndex) => cardIndex !== index),
+      }),
+    );
   }
 
   return (
     <div className="space-y-5">
       <label className="space-y-2 text-sm font-medium text-foreground">
         Deck name
-        <Input value={deck.title} disabled={disabled} onChange={(event) => updateTitle(event.target.value)} />
+        <Input
+          value={deck.title}
+          disabled={disabled}
+          onChange={(event) => updateTitle(event.target.value)}
+        />
       </label>
 
       <div className="space-y-4">
@@ -208,7 +239,9 @@ function DeckEditor({
                     className="min-h-32 resize-y"
                     value={card.front}
                     disabled={disabled}
-                    onChange={(event) => updateCard(index, { front: event.target.value })}
+                    onChange={(event) =>
+                      updateCard(index, { front: event.target.value })
+                    }
                   />
                 </label>
                 <label className="space-y-2 text-sm font-medium text-foreground">
@@ -217,7 +250,9 @@ function DeckEditor({
                     className="min-h-32 resize-y"
                     value={card.back}
                     disabled={disabled}
-                    onChange={(event) => updateCard(index, { back: event.target.value })}
+                    onChange={(event) =>
+                      updateCard(index, { back: event.target.value })
+                    }
                   />
                 </label>
               </div>
@@ -227,7 +262,9 @@ function DeckEditor({
                 <Input
                   value={(card.tags ?? []).join(", ")}
                   disabled={disabled}
-                  onChange={(event) => updateCard(index, { tags: parseTags(event.target.value) })}
+                  onChange={(event) =>
+                    updateCard(index, { tags: parseTags(event.target.value) })
+                  }
                 />
               </label>
 
@@ -248,8 +285,14 @@ function DeckEditor({
   );
 }
 
-export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps) {
-  const embeddedNotes = useMemo(() => notes.filter((note) => note.hasEmbedding), [notes]);
+export function FlashcardsClient({
+  notes,
+  initialDecks,
+}: FlashcardsClientProps) {
+  const embeddedNotes = useMemo(
+    () => notes.filter((note) => note.hasEmbedding),
+    [notes],
+  );
   const [view, setView] = useState<FlashcardView>("library");
   const [createStep, setCreateStep] = useState<CreateStep>("context");
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
@@ -267,13 +310,22 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
 
   const activeDeck = decks.find((deck) => deck.id === activeDeckId) ?? decks[0];
   const activeCard = activeDeck?.cards[activeCardIndex];
-  const canGenerate = selectedNoteIds.length > 0 && embeddedNotes.length > 0 && !isGenerating;
-  const canSaveDraft = Boolean(draftDeck?.title.trim() && draftDeck.cards.every((card) => card.front.trim() && card.back.trim()));
-  const canSaveEdit = Boolean(editingDeck?.title.trim() && editingDeck.cards.every((card) => card.front.trim() && card.back.trim()));
+  const canGenerate =
+    selectedNoteIds.length > 0 && embeddedNotes.length > 0 && !isGenerating;
+  const canSaveDraft = Boolean(
+    draftDeck?.title.trim() &&
+    draftDeck.cards.every((card) => card.front.trim() && card.back.trim()),
+  );
+  const canSaveEdit = Boolean(
+    editingDeck?.title.trim() &&
+    editingDeck.cards.every((card) => card.front.trim() && card.back.trim()),
+  );
 
   function toggleNote(noteId: string) {
     setSelectedNoteIds((current) =>
-      current.includes(noteId) ? current.filter((id) => id !== noteId) : [...current, noteId],
+      current.includes(noteId)
+        ? current.filter((id) => id !== noteId)
+        : [...current, noteId],
     );
   }
 
@@ -311,7 +363,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
       return;
     }
 
-    setActiveCardIndex(Math.min(Math.max(index, 0), activeDeck.cards.length - 1));
+    setActiveCardIndex(
+      Math.min(Math.max(index, 0), activeDeck.cards.length - 1),
+    );
     setShowBack(false);
   }
 
@@ -334,7 +388,11 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
       setDraftDeck(cloneDeck(payload.deck));
       setCreateStep("preview");
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Flashcard generation failed");
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Flashcard generation failed",
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -367,7 +425,11 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
       setCreateStep("context");
       openReview(payload.deck.id);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Flashcard deck save failed");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Flashcard deck save failed",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -394,11 +456,19 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
         }),
       );
 
-      setDecks((current) => current.map((deck) => (deck.id === payload.deck.id ? payload.deck : deck)));
+      setDecks((current) =>
+        current.map((deck) =>
+          deck.id === payload.deck.id ? payload.deck : deck,
+        ),
+      );
       setEditingDeck(null);
       openReview(payload.deck.id);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Flashcard deck update failed");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Flashcard deck update failed",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -425,14 +495,18 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
       }
       openLibrary();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Flashcard deck delete failed");
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Flashcard deck delete failed",
+      );
     } finally {
       setDeletingDeckId(null);
     }
   }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-full w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader
         eyebrow="Flashcards"
         title={view === "library" ? "My Flashcards" : "Flashcards"}
@@ -451,10 +525,15 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{decks.length} decks</Badge>
               <Badge variant="outline">
-                {decks.reduce((total, deck) => total + deck.cards.length, 0)} cards
+                {decks.reduce((total, deck) => total + deck.cards.length, 0)}{" "}
+                cards
               </Badge>
             </div>
-            <Button type="button" leadingIcon={<Plus className="size-4" />} onClick={openCreate}>
+            <Button
+              type="button"
+              leadingIcon={<Plus className="size-4" />}
+              onClick={openCreate}
+            >
               Create flashcards
             </Button>
           </div>
@@ -464,7 +543,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
               <CardContent className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
                 <Brain className="size-10 text-muted-foreground" />
                 <div className="space-y-1">
-                  <h2 className="text-base font-semibold text-foreground">No flashcard decks</h2>
+                  <h2 className="text-base font-semibold text-foreground">
+                    No flashcard decks
+                  </h2>
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
                     Saved decks appear here.
                   </p>
@@ -480,7 +561,8 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                       <div className="min-w-0 space-y-2">
                         <CardTitle className="truncate">{deck.title}</CardTitle>
                         <CardDescription>
-                          {deck.cards.length} cards - Updated {formatDeckDate(deck.updatedAt)}
+                          {deck.cards.length} cards - Updated{" "}
+                          {formatDeckDate(deck.updatedAt)}
                         </CardDescription>
                       </div>
                       <Layers3 className="size-5 shrink-0 text-muted-foreground" />
@@ -488,11 +570,19 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex flex-wrap gap-2">
-                      {deck.sourceNoteIds.length > 0 ? <Badge variant="accent">Generated</Badge> : <Badge>Manual</Badge>}
+                      {deck.sourceNoteIds.length > 0 ? (
+                        <Badge variant="accent">Generated</Badge>
+                      ) : (
+                        <Badge>Manual</Badge>
+                      )}
                       <Badge variant="outline">Private</Badge>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" onClick={() => openReview(deck.id)}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => openReview(deck.id)}
+                      >
                         Review
                       </Button>
                       <Button
@@ -533,14 +623,24 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
         <Card>
           <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
-              <CardTitle>{createStep === "context" ? "Create Flashcards" : "Preview Deck"}</CardTitle>
+              <CardTitle>
+                {createStep === "context"
+                  ? "Create Flashcards"
+                  : "Preview Deck"}
+              </CardTitle>
               <CardDescription>
-                {createStep === "context" ? "Choose note context." : "Edit before saving."}
+                {createStep === "context"
+                  ? "Choose note context."
+                  : "Edit before saving."}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={createStep === "context" ? "accent" : "outline"}>Context</Badge>
-              <Badge variant={createStep === "preview" ? "accent" : "outline"}>Preview</Badge>
+              <Badge variant={createStep === "context" ? "accent" : "outline"}>
+                Context
+              </Badge>
+              <Badge variant={createStep === "preview" ? "accent" : "outline"}>
+                Preview
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -548,8 +648,12 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
               <>
                 <section className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-medium text-foreground">Notes</h2>
-                    <Badge variant="outline">{selectedNoteIds.length} selected</Badge>
+                    <h2 className="text-sm font-medium text-foreground">
+                      Notes
+                    </h2>
+                    <Badge variant="outline">
+                      {selectedNoteIds.length} selected
+                    </Badge>
                   </div>
                   <div className="grid max-h-[28rem] gap-2 overflow-auto pr-1 md:grid-cols-2">
                     {notes.length === 0 ? (
@@ -575,9 +679,13 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                             onChange={() => toggleNote(note.id)}
                           />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium text-foreground">{note.title}</span>
+                            <span className="block truncate font-medium text-foreground">
+                              {note.title}
+                            </span>
                             <span className="text-xs text-muted-foreground">
-                              {note.hasEmbedding ? "Embedding ready" : "No embedding"}
+                              {note.hasEmbedding
+                                ? "Embedding ready"
+                                : "No embedding"}
                             </span>
                           </span>
                         </label>
@@ -594,7 +702,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                     max={40}
                     value={cardCount}
                     disabled={isGenerating}
-                    onChange={(event) => setCardCount(Number(event.target.value))}
+                    onChange={(event) =>
+                      setCardCount(Number(event.target.value))
+                    }
                   />
                 </label>
 
@@ -603,13 +713,22 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                     type="button"
                     disabled={!canGenerate}
                     leadingIcon={
-                      isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />
+                      isGenerating ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Check className="size-4" />
+                      )
                     }
                     onClick={generatePreview}
                   >
                     Generate preview
                   </Button>
-                  <Button type="button" variant="outline" disabled={isGenerating} onClick={openLibrary}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isGenerating}
+                    onClick={openLibrary}
+                  >
                     Cancel
                   </Button>
                 </div>
@@ -618,12 +737,22 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
 
             {createStep === "preview" && draftDeck ? (
               <>
-                <DeckEditor deck={draftDeck} disabled={isSaving} onChange={setDraftDeck} />
+                <DeckEditor
+                  deck={draftDeck}
+                  disabled={isSaving}
+                  onChange={setDraftDeck}
+                />
                 <div className="flex flex-wrap gap-3">
                   <Button
                     type="button"
                     disabled={!canSaveDraft || isSaving}
-                    leadingIcon={isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                    leadingIcon={
+                      isSaving ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Save className="size-4" />
+                      )
+                    }
                     onClick={saveDraftDeck}
                   >
                     Save deck
@@ -637,7 +766,12 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                   >
                     Back
                   </Button>
-                  <Button type="button" variant="ghost" disabled={isSaving} onClick={openLibrary}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={isSaving}
+                    onClick={openLibrary}
+                  >
                     Cancel
                   </Button>
                 </div>
@@ -652,17 +786,29 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
           <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <CardTitle>Edit Flashcards</CardTitle>
-              <CardDescription>Deck name, card fronts, backs, and tags.</CardDescription>
+              <CardDescription>
+                Deck name, card fronts, backs, and tags.
+              </CardDescription>
             </div>
             <Badge variant="outline">{editingDeck.cards.length} cards</Badge>
           </CardHeader>
           <CardContent className="space-y-6">
-            <DeckEditor deck={editingDeck} disabled={isSaving} onChange={setEditingDeck} />
+            <DeckEditor
+              deck={editingDeck}
+              disabled={isSaving}
+              onChange={setEditingDeck}
+            />
             <div className="flex flex-wrap gap-3">
               <Button
                 type="button"
                 disabled={!canSaveEdit || isSaving}
-                leadingIcon={isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                leadingIcon={
+                  isSaving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )
+                }
                 onClick={saveEditedDeck}
               >
                 Save changes
@@ -687,7 +833,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
             <div className="space-y-2">
               <CardTitle>{activeDeck?.title ?? "Deck workspace"}</CardTitle>
               <CardDescription>
-                {activeDeck ? `${activeCardIndex + 1}/${activeDeck.cards.length} cards` : "No deck selected."}
+                {activeDeck
+                  ? `${activeCardIndex + 1}/${activeDeck.cards.length} cards`
+                  : "No deck selected."}
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -702,7 +850,12 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                   Edit
                 </Button>
               ) : null}
-              <Button type="button" variant="ghost" size="sm" onClick={openLibrary}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={openLibrary}
+              >
                 My Flashcards
               </Button>
             </div>
@@ -716,7 +869,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                   onClick={() => setShowBack((value) => !value)}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <Badge variant="accent">{showBack ? "Back" : "Front"}</Badge>
+                    <Badge variant="accent">
+                      {showBack ? "Back" : "Front"}
+                    </Badge>
                     <Badge variant="outline">Flip</Badge>
                   </div>
                   <div className="mx-auto flex w-full max-w-3xl flex-1 items-center justify-center py-8">
@@ -759,7 +914,10 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
                   </Button>
                   <Button
                     type="button"
-                    disabled={!activeDeck || activeCardIndex >= activeDeck.cards.length - 1}
+                    disabled={
+                      !activeDeck ||
+                      activeCardIndex >= activeDeck.cards.length - 1
+                    }
                     leadingIcon={<ChevronRight className="size-4" />}
                     onClick={() => goToCard(activeCardIndex + 1)}
                   >
@@ -771,7 +929,9 @@ export function FlashcardsClient({ notes, initialDecks }: FlashcardsClientProps)
               <div className="flex min-h-96 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-surface-muted px-6 text-center">
                 <Brain className="size-10 text-muted-foreground" />
                 <div className="space-y-1">
-                  <h2 className="text-base font-semibold text-foreground">No deck selected</h2>
+                  <h2 className="text-base font-semibold text-foreground">
+                    No deck selected
+                  </h2>
                   <p className="max-w-md text-sm leading-6 text-muted-foreground">
                     Choose a saved deck.
                   </p>
