@@ -14,22 +14,65 @@ function omitNode<T extends { node?: unknown }>(props: T): Omit<T, "node"> {
   return rest;
 }
 
-function extractCode(children: ReactNode) {
-  if (!isValidElement<{ children?: ReactNode }>(children)) {
-    return "";
+function getTextContent(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
   }
 
-  const codeChildren = children.props.children;
-
-  if (typeof codeChildren === "string") {
-    return codeChildren.replace(/\n$/, "");
+  if (Array.isArray(value)) {
+    return value.map(getTextContent).join("");
   }
 
-  if (Array.isArray(codeChildren)) {
-    return codeChildren.join("").replace(/\n$/, "");
+  if (isValidElement<{ children?: ReactNode }>(value)) {
+    return getTextContent(value.props.children);
+  }
+
+  if (value && typeof value === "object") {
+    const candidate = value as {
+      children?: unknown;
+      props?: { children?: ReactNode };
+      value?: unknown;
+    };
+
+    if (candidate.props?.children) {
+      return getTextContent(candidate.props.children);
+    }
+
+    if (typeof candidate.value === "string" || typeof candidate.value === "number") {
+      return String(candidate.value);
+    }
+
+    if (candidate.children) {
+      return getNodeText(candidate.children);
+    }
   }
 
   return "";
+}
+
+function getNodeText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(getNodeText).join("");
+  }
+
+  if (value && typeof value === "object") {
+    const candidate = value as { value?: unknown; children?: unknown };
+    if (typeof candidate.value === "string" || typeof candidate.value === "number") {
+      return String(candidate.value);
+    }
+
+    return getNodeText(candidate.children);
+  }
+
+  return "";
+}
+
+function extractCode(children: ReactNode) {
+  return getTextContent(children).replace(/\n$/, "");
 }
 
 export function NoteRenderer({ markdown }: { markdown: string }) {
@@ -63,8 +106,9 @@ export function NoteRenderer({ markdown }: { markdown: string }) {
             );
           },
           pre: (props) => {
-            const { children } = omitNode(props);
-            return <CodeBlockView data={{ code: extractCode(Children.only(children)) }} />;
+            const { children, node } = props;
+            const code = getNodeText(node) || extractCode(Children.only(children));
+            return <CodeBlockView data={{ code }} />;
           },
           code: (props) => {
             const { children, className, ...rest } = omitNode(props);
