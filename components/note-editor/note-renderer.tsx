@@ -14,28 +14,58 @@ function omitNode<T extends { node?: unknown }>(props: T): Omit<T, "node"> {
   return rest;
 }
 
-function getTextContent(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") {
-    return String(node);
+function getTextContent(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
   }
 
-  if (Array.isArray(node)) {
-    return node.map(getTextContent).join("");
+  if (Array.isArray(value)) {
+    return value.map(getTextContent).join("");
   }
 
-  if (isValidElement<{ children?: ReactNode }>(node)) {
-    return getTextContent(node.props.children);
+  if (isValidElement<{ children?: ReactNode }>(value)) {
+    return getTextContent(value.props.children);
   }
 
-  if (node && typeof node === "object") {
-    if ("value" in node) {
-      const value = (node as { value?: unknown }).value;
-      return typeof value === "string" || typeof value === "number" ? String(value) : getTextContent(value as ReactNode);
+  if (value && typeof value === "object") {
+    const candidate = value as {
+      children?: unknown;
+      props?: { children?: ReactNode };
+      value?: unknown;
+    };
+
+    if (candidate.props?.children) {
+      return getTextContent(candidate.props.children);
     }
 
-    if ("children" in node) {
-      return getTextContent((node as { children?: ReactNode }).children);
+    if (typeof candidate.value === "string" || typeof candidate.value === "number") {
+      return String(candidate.value);
     }
+
+    if (candidate.children) {
+      return getNodeText(candidate.children);
+    }
+  }
+
+  return "";
+}
+
+function getNodeText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(getNodeText).join("");
+  }
+
+  if (value && typeof value === "object") {
+    const candidate = value as { value?: unknown; children?: unknown };
+    if (typeof candidate.value === "string" || typeof candidate.value === "number") {
+      return String(candidate.value);
+    }
+
+    return getNodeText(candidate.children);
   }
 
   return "";

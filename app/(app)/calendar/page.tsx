@@ -12,10 +12,8 @@ export default async function CalendarPage() {
   }));
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <CalendarClient events={calendarEvents} initialDate={initialDate} />
-      </div>
+    <div className="h-full overflow-hidden">
+      <CalendarClient events={calendarEvents} initialDate={initialDate} />
     </div>
   );
 }
